@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { supabase } from '@/utils/supabase';
 import { useRouter } from 'expo-router';
 
@@ -35,46 +35,60 @@ const DriverRegisterScreen = () => {
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Vejo que você é um motorista</Text>
-      <Text style={styles.subtitle}>Por favor, preencha esses dados:</Text>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      style={{ flex: 1 }}
+    >
+      <ScrollView
+        contentContainerStyle={{ flexGrow: 1 }}
+        keyboardShouldPersistTaps='handled'
+      >
+        <View style={styles.container}>
+          <TouchableOpacity>
+            <Text style={styles.title}>Vejo que você é um motorista</Text>
+          </TouchableOpacity>
+          <TouchableOpacity>
+            <Text style={styles.subtitle}>Por favor, preencha esses dados:</Text>
+          </TouchableOpacity>
 
-      <TextInput
-        style={styles.input}
-        placeholder="Veículo"
-        value={vehicle}
-        onChangeText={setVehicle}
-      />
+          <TextInput
+            style={styles.input}
+            placeholder="Veículo"
+            value={vehicle}
+            onChangeText={setVehicle}
+          />
 
-      <TextInput
-        style={styles.input}
-        placeholder="Placa do veículo"
-        value={licensePlate}
-        onChangeText={setLicensePlate}
-      />
+          <TextInput
+            style={styles.input}
+            placeholder="Placa do veículo"
+            value={licensePlate}
+            onChangeText={setLicensePlate}
+          />
 
-      <TextInput
-        style={styles.input}
-        placeholder="Número da CNH"
-        value={driverLicense}
-        onChangeText={setDriverLicense}
-      />
+          <TextInput
+            style={styles.input}
+            placeholder="Número da CNH"
+            value={driverLicense}
+            onChangeText={setDriverLicense}
+          />
 
-      <TextInput
-        style={styles.input}
-        placeholder="Tipo de caminhão"
-        value={truckType}
-        onChangeText={setTruckType}
-      />
+          <TextInput
+            style={styles.input}
+            placeholder="Tipo de caminhão"
+            value={truckType}
+            onChangeText={setTruckType}
+          />
 
-      <TouchableOpacity style={styles.button} onPress={handleRegister} disabled={loading}>
-        {loading ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
-          <Text style={styles.buttonText}>Finalizar Registro</Text>
-        )}
-      </TouchableOpacity>
-    </View>
+          <TouchableOpacity style={styles.button} onPress={handleRegister} disabled={loading}>
+            {loading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.buttonText}>Finalizar Registro</Text>
+            )}
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 };
 

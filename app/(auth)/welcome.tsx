@@ -4,16 +4,22 @@ import { Link } from 'expo-router';
 const WelcomeScreen = () => {
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Bem-vindo!</Text>
+      <TouchableOpacity>
+        <Text style={styles.title}>Bem-vindo!</Text>
+      </TouchableOpacity>
 
-      <Text style={styles.subtitle}>Deseja se registrar?</Text>
+      <TouchableOpacity>
+        <Text style={styles.subtitle}>Deseja se registrar?</Text>
+      </TouchableOpacity>
       <Link href="/(auth)/register" asChild>
         <TouchableOpacity style={styles.button}>
           <Text style={styles.buttonText}>Criar conta</Text>
         </TouchableOpacity>
       </Link>
 
-      <Text style={styles.subtitle}>Já tem uma conta?</Text>
+      <TouchableOpacity>
+        <Text style={styles.subtitle}>Já tem uma conta?</Text>
+      </TouchableOpacity>
       <Link href="/(auth)/login" asChild>
         <TouchableOpacity style={styles.button}>
           <Text style={styles.buttonText}>Fazer login</Text>
