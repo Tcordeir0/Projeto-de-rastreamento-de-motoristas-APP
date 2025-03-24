@@ -3,10 +3,6 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator 
 import { supabase } from '@/utils/supabase';
 import { useRouter } from 'expo-router';
 
-const BRANCHES = [
-  'BA', 'CE', 'MA', 'MG', 'MS', 'MT', 'PA', 'PE', 'PI', 'PR', 'SE', 'SP', 'SC', 'TO'
-];
-
 const RegisterScreen = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -23,35 +19,41 @@ const RegisterScreen = () => {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
+  const isCorporateEmail = email.toLowerCase().endsWith('@borgnotransportes.com.br');
+
   const handleRegister = async () => {
     setLoading(true);
     try {
-      const isBorgnoTransportes = email.toLowerCase().endsWith('@borgnotransportes.com.br');
-      
       if (!email || !password || !phoneNumber) {
         setError('Preencha todos os campos obrigatórios');
         return;
       }
 
-      if (isBorgnoTransportes && !filial) {
+      if (isCorporateEmail && !filial) {
         setError('Selecione uma filial ou matriz');
         return;
       }
 
-      if (!isBorgnoTransportes && (!licenseNumber || !truckType)) {
+      if (!isCorporateEmail && (!licenseNumber || !truckType)) {
         setError('Preencha os dados do veículo e CNH');
         return;
       }
 
-      // Criar usuário no Supabase Auth
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
         password,
+        options: {
+          data: {
+            vehicle: isCorporateEmail ? null : veiculo,
+            license_plate: isCorporateEmail ? null : placa,
+            driver_license: isCorporateEmail ? null : licenseNumber,
+            truck_type: isCorporateEmail ? null : truckType
+          }
+        }
       });
 
       if (authError) throw authError;
 
-      // Inserir dados adicionais na tabela 'users'
       const { error: userError } = await supabase
         .from('users')
         .insert([
@@ -60,26 +62,24 @@ const RegisterScreen = () => {
             email,
             nome,
             cpf,
-            veiculo,
-            placa,
-            filial: isBorgnoTransportes ? (filial || 'Matriz') : null,
-            isAdmin: isBorgnoTransportes,
+            veiculo: isCorporateEmail ? null : veiculo,
+            placa: isCorporateEmail ? null : placa,
+            filial: isCorporateEmail ? (filial || 'Matriz') : null,
+            isAdmin: isCorporateEmail,
           },
         ]);
 
       if (userError) throw userError;
 
-      // Redirecionar para a tela principal após o registro
+      alert('Verifique seu email para confirmar o registro!');
       router.replace('/');
     } catch (error) {
       console.error('Erro ao registrar:', error);
-      alert('Erro ao registrar. Verifique os dados informados.');
+      alert('Erro ao registrar. Verifique suas informações.');
     } finally {
       setLoading(false);
     }
   };
-
-  const isBorgnoTransportes = email.toLowerCase().endsWith('@borgnotransportes.com.br');
 
   return (
     <View style={styles.container}>
@@ -127,21 +127,7 @@ const RegisterScreen = () => {
         keyboardType="phone-pad"
       />
 
-      <TextInput
-        style={styles.input}
-        placeholder="Veículo"
-        value={veiculo}
-        onChangeText={setVeiculo}
-      />
-
-      <TextInput
-        style={styles.input}
-        placeholder="Placa"
-        value={placa}
-        onChangeText={setPlaca}
-      />
-
-      {isBorgnoTransportes ? (
+      {isCorporateEmail ? (
         <View style={styles.branchContainer}>
           <Text style={styles.branchTitle}>Selecione a Filial:</Text>
           <TouchableOpacity
@@ -150,7 +136,7 @@ const RegisterScreen = () => {
           >
             <Text style={styles.branchText}>Matriz (Goiânia)</Text>
           </TouchableOpacity>
-          {BRANCHES.map((branchName) => (
+          {['BA', 'CE', 'MA', 'MG', 'MS', 'MT', 'PA', 'PE', 'PI', 'PR', 'SE', 'SP', 'SC', 'TO'].map((branchName) => (
             <TouchableOpacity
               key={branchName}
               style={[styles.branchButton, filial === branchName && styles.selectedBranch]}
@@ -164,13 +150,28 @@ const RegisterScreen = () => {
         <>
           <TextInput
             style={styles.input}
+            placeholder="Veículo"
+            value={veiculo}
+            onChangeText={setVeiculo}
+          />
+
+          <TextInput
+            style={styles.input}
+            placeholder="Placa do veículo"
+            value={placa}
+            onChangeText={setPlaca}
+          />
+
+          <TextInput
+            style={styles.input}
             placeholder="Número da CNH"
             value={licenseNumber}
             onChangeText={setLicenseNumber}
           />
+
           <TextInput
             style={styles.input}
-            placeholder="Tipo do Caminhão"
+            placeholder="Tipo de caminhão"
             value={truckType}
             onChangeText={setTruckType}
           />
@@ -183,6 +184,10 @@ const RegisterScreen = () => {
         ) : (
           <Text style={styles.buttonText}>Registrar</Text>
         )}
+      </TouchableOpacity>
+
+      <TouchableOpacity style={styles.secondaryButton} onPress={() => router.replace('/(auth)/welcome')}>
+        <Text style={styles.secondaryButtonText}>Voltar</Text>
       </TouchableOpacity>
     </View>
   );
@@ -214,9 +219,22 @@ const styles = StyleSheet.create({
     borderRadius: 5,
     justifyContent: 'center',
     alignItems: 'center',
+    marginBottom: 10,
+  },
+  secondaryButton: {
+    height: 50,
+    backgroundColor: '#ccc',
+    borderRadius: 5,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   buttonText: {
     color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  secondaryButtonText: {
+    color: '#000',
     fontSize: 16,
     fontWeight: 'bold',
   },

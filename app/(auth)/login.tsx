@@ -19,7 +19,6 @@ const LoginScreen = () => {
 
       if (error) throw error;
 
-      // Redirecionar para a tela principal após o login
       router.replace('/');
     } catch (error) {
       console.error('Erro ao fazer login:', error);
@@ -57,6 +56,10 @@ const LoginScreen = () => {
           <Text style={styles.buttonText}>Entrar</Text>
         )}
       </TouchableOpacity>
+
+      <TouchableOpacity style={styles.secondaryButton} onPress={() => router.replace('/(auth)/welcome')}>
+        <Text style={styles.secondaryButtonText}>Voltar</Text>
+      </TouchableOpacity>
     </View>
   );
 };
@@ -87,9 +90,22 @@ const styles = StyleSheet.create({
     borderRadius: 5,
     justifyContent: 'center',
     alignItems: 'center',
+    marginBottom: 10,
+  },
+  secondaryButton: {
+    height: 50,
+    backgroundColor: '#ccc',
+    borderRadius: 5,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   buttonText: {
     color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  secondaryButtonText: {
+    color: '#000',
     fontSize: 16,
     fontWeight: 'bold',
   },
