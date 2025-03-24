@@ -3,27 +3,29 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator 
 import { supabase } from '@/utils/supabase';
 import { useRouter } from 'expo-router';
 
-const RegisterScreen = () => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+const DriverRegisterScreen = () => {
+  const [vehicle, setVehicle] = useState('');
+  const [licensePlate, setLicensePlate] = useState('');
+  const [driverLicense, setDriverLicense] = useState('');
+  const [truckType, setTruckType] = useState('');
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
   const handleRegister = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password
+      const { error } = await supabase.auth.updateUser({
+        data: {
+          vehicle,
+          license_plate: licensePlate,
+          driver_license: driverLicense,
+          truck_type: truckType
+        }
       });
 
       if (error) throw error;
 
-      if (email.endsWith('@borgnotransportes.com.br')) {
-        router.replace('/(auth)/employee-register');
-      } else {
-        router.replace('/(auth)/driver-register');
-      }
+      router.replace('/');
     } catch (error) {
       console.error('Erro ao registrar:', error);
       alert('Erro ao registrar. Verifique suas informações.');
@@ -34,35 +36,43 @@ const RegisterScreen = () => {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Registro</Text>
+      <Text style={styles.title}>Vejo que você é um motorista</Text>
+      <Text style={styles.subtitle}>Por favor, preencha esses dados:</Text>
 
       <TextInput
         style={styles.input}
-        placeholder="Email"
-        value={email}
-        onChangeText={setEmail}
-        keyboardType="email-address"
-        autoCapitalize="none"
+        placeholder="Veículo"
+        value={vehicle}
+        onChangeText={setVehicle}
       />
 
       <TextInput
         style={styles.input}
-        placeholder="Senha"
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
+        placeholder="Placa do veículo"
+        value={licensePlate}
+        onChangeText={setLicensePlate}
+      />
+
+      <TextInput
+        style={styles.input}
+        placeholder="Número da CNH"
+        value={driverLicense}
+        onChangeText={setDriverLicense}
+      />
+
+      <TextInput
+        style={styles.input}
+        placeholder="Tipo de caminhão"
+        value={truckType}
+        onChangeText={setTruckType}
       />
 
       <TouchableOpacity style={styles.button} onPress={handleRegister} disabled={loading}>
         {loading ? (
           <ActivityIndicator color="#fff" />
         ) : (
-          <Text style={styles.buttonText}>Criar conta</Text>
+          <Text style={styles.buttonText}>Finalizar Registro</Text>
         )}
-      </TouchableOpacity>
-
-      <TouchableOpacity style={styles.secondaryButton} onPress={() => router.replace('/(auth)/welcome')}>
-        <Text style={styles.secondaryButtonText}>Voltar</Text>
       </TouchableOpacity>
     </View>
   );
@@ -77,6 +87,11 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: 'bold',
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  subtitle: {
+    fontSize: 16,
     marginBottom: 20,
     textAlign: 'center',
   },
@@ -96,23 +111,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 10,
   },
-  secondaryButton: {
-    height: 50,
-    backgroundColor: '#ccc',
-    borderRadius: 5,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
   buttonText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
   },
-  secondaryButtonText: {
-    color: '#000',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
 });
 
-export default RegisterScreen;
+export default DriverRegisterScreen;
