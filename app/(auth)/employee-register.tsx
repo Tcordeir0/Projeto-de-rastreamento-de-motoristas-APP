@@ -12,6 +12,12 @@ const EmployeeRegisterScreen = () => {
   const handleRegister = async () => {
     setLoading(true);
     try {
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+      if (sessionError || !session) {
+        throw new Error('Sessão inválida. Faça login novamente.');
+      }
+
       const { error } = await supabase.auth.updateUser({
         data: {
           branch: branch || 'Matriz'
@@ -23,7 +29,11 @@ const EmployeeRegisterScreen = () => {
       router.replace('/');
     } catch (error) {
       console.error('Erro ao registrar:', error);
-      alert('Erro ao registrar. Verifique suas informações.');
+      if (error instanceof Error) {
+        alert(error.message);
+      } else {
+        alert('Erro ao registrar. Verifique suas informações.');
+      }
     } finally {
       setLoading(false);
     }
