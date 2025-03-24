@@ -7,6 +7,7 @@ const RegisterScreen = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [needsConfirmation, setNeedsConfirmation] = useState(false);
   const router = useRouter();
 
   const handleRegister = async () => {
@@ -19,6 +20,19 @@ const RegisterScreen = () => {
 
       if (error) throw error;
 
+      if (data.user && !data.user.email_confirmed_at) {
+        setNeedsConfirmation(true);
+        alert('Por favor, verifique seu email e clique no link de confirmação para ativar sua conta.');
+        return;
+      }
+
+      // Verificar novamente o status de confirmação
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+      if (sessionError || !session?.user?.email_confirmed_at) {
+        throw new Error('Email ainda não confirmado. Verifique sua caixa de entrada.');
+      }
+
       if (email.endsWith('@borgnotransportes.com.br')) {
         router.replace('/(auth)/employee-register');
       } else {
@@ -26,7 +40,11 @@ const RegisterScreen = () => {
       }
     } catch (error) {
       console.error('Erro ao registrar:', error);
-      alert('Erro ao registrar. Verifique suas informações.');
+      if (error instanceof Error) {
+        alert(error.message);
+      } else {
+        alert('Erro ao registrar. Verifique suas informações.');
+      }
     } finally {
       setLoading(false);
     }
@@ -60,6 +78,19 @@ const RegisterScreen = () => {
           <Text style={styles.buttonText}>Criar conta</Text>
         )}
       </TouchableOpacity>
+
+      {needsConfirmation && (
+        <TouchableOpacity
+          style={styles.secondaryButton}
+          onPress={async () => {
+            const { error } = await supabase.auth.resend({ type: 'signup', email });
+            if (error) alert('Erro ao reenviar email de confirmação.');
+            else alert('Email de confirmação reenviado com sucesso!');
+          }}
+        >
+          <Text style={styles.secondaryButtonText}>Reenviar email de confirmação</Text>
+        </TouchableOpacity>
+      )}
 
       <TouchableOpacity style={styles.secondaryButton} onPress={() => router.replace('/(auth)/welcome')}>
         <Text style={styles.secondaryButtonText}>Voltar</Text>

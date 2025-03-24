@@ -188,6 +188,19 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
+  photoButton: {
+    height: 50,
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  photoButtonText: {
+    fontSize: 16,
+    color: '#007AFF',
+  }
 });
 
 export default EmployeeRegisterScreen;
