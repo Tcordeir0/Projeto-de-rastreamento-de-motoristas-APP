@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Modal, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Modal, ScrollView, TextInput } from 'react-native';
 import { supabase } from '@/utils/supabase';
 import { useRouter } from 'expo-router';
 
 const EmployeeRegisterScreen = () => {
   const [branch, setBranch] = useState<string | null>(null);
+  const [phone, setPhone] = useState<string>("");
   const [showDropdown, setShowDropdown] = useState(false);
   const [loading, setLoading] = useState(false);
   const router = useRouter();
@@ -20,7 +21,8 @@ const EmployeeRegisterScreen = () => {
 
       const { error } = await supabase.auth.updateUser({
         data: {
-          branch: branch || 'Matriz'
+          branch: branch || 'Matriz',
+          phone: phone
         }
       });
 
@@ -107,10 +109,18 @@ const EmployeeRegisterScreen = () => {
         </TouchableOpacity>
       </Modal>
 
+      <TextInput
+        style={styles.input}
+        placeholder="Número de telefone"
+        value={phone}
+        onChangeText={setPhone}
+        keyboardType="phone-pad"
+      />
+
       <TouchableOpacity 
         style={[styles.button, !branch && styles.disabledButton]} 
         onPress={handleRegister} 
-        disabled={!branch || loading}
+        disabled={!branch || !phone || loading}
       >
         {loading ? (
           <ActivityIndicator color="#fff" />
@@ -188,19 +198,16 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
-  photoButton: {
+  input: {
     height: 50,
     borderWidth: 1,
     borderColor: '#ccc',
     borderRadius: 8,
     justifyContent: 'center',
-    alignItems: 'center',
+    paddingHorizontal: 15,
     marginBottom: 20,
+    backgroundColor: '#fff',
   },
-  photoButtonText: {
-    fontSize: 16,
-    color: '#007AFF',
-  }
 });
 
 export default EmployeeRegisterScreen;
