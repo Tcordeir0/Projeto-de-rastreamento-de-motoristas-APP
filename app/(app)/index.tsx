@@ -5,6 +5,7 @@ import * as Location from 'expo-location';
 import { supabase } from '@/utils/supabase';
 import { Phone } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 
 type Driver = {
   id: string;
@@ -40,7 +41,7 @@ export default function MapScreen() {
         router.replace('/(auth)/login');
       } else {
         const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return null; // Add null check for 'user' variable
+        if (!user) return null; 
         setIsAdmin(user.user_metadata?.isAdmin ?? false); 
       }
     };
@@ -48,7 +49,6 @@ export default function MapScreen() {
     checkSession();
   }, []);
 
-  // Carregar motoristas iniciais
   useEffect(() => {
     if (!isAdmin) return;
 
@@ -100,10 +100,9 @@ export default function MapScreen() {
         async (newLocation) => {
           setLocation(newLocation);
 
-          // Atualizar localização no Supabase apenas se for motorista
           if (!isAdmin) {
             const { data: { user } } = await supabase.auth.getUser();
-            if (!user) return null; // Add null check for 'user' variable
+            if (!user) return null; 
             await supabase
               .from('users')
               .update({
@@ -120,7 +119,6 @@ export default function MapScreen() {
     })();
   }, [isAdmin]);
 
-  // Observar motoristas em tempo real
   useEffect(() => {
     if (!isAdmin) return;
 
@@ -191,7 +189,9 @@ export default function MapScreen() {
               longitude: location.coords.longitude,
             }}
             title={isAdmin ? "Você (Admin)" : "Você (Motorista)"}
-          />
+          >
+            <Ionicons name={isAdmin ? "person" : "car"} size={24} color={isAdmin ? "blue" : "black"} />
+          </Marker>
 
           {/* Marcadores para os motoristas (visíveis apenas para admin) */}
           {isAdmin && drivers.map((driver) => (
@@ -203,19 +203,9 @@ export default function MapScreen() {
               }}
               title={driver.email}
             >
-              <Callout>
-                <View style={styles.calloutContainer}>
-                  <Text style={styles.calloutTitle}>{driver.email}</Text>
-                  <Text>Tipo de Caminhão: {driver.truckType}</Text>
-                  <TouchableOpacity
-                    style={styles.callButton}
-                    onPress={() => handleCallDriver(driver.phoneNumber)}
-                  >
-                    <Phone size={20} color="#007AFF" />
-                    <Text style={styles.callButtonText}>Ligar</Text>
-                  </TouchableOpacity>
-                </View>
-              </Callout>
+              <View style={{ backgroundColor: 'red', borderRadius: 12, padding: 2 }}>
+                <Ionicons name="car" size={20} color="white" />
+              </View>
             </Marker>
           ))}
         </MapView>

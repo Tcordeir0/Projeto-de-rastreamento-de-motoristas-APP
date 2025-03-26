@@ -3,14 +3,14 @@
   "compilerOptions": {
     "strict": true,
     "paths": {
-      "@/*": [
-        "./*"
-      ]
+      "@/*": ["./app/*"],
+      "@/utils/*": ["./utils/*"]
     }
   },
   "include": [
     "**/*.ts",
     "**/*.tsx",
-    "nativewind-env.d.ts"
-, "lib/firebase"  ]
+    "nativewind-env.d.ts",
+    "lib/firebase"
+  ]
 }
