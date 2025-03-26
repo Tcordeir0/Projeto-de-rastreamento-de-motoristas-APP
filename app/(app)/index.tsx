@@ -6,6 +6,7 @@ import { supabase } from '@/utils/supabase';
 import { Phone } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { Stack } from 'expo-router';
 
 type Driver = {
   id: string;
@@ -26,11 +27,20 @@ type SupabasePayload = {
   eventType: 'INSERT' | 'UPDATE' | 'DELETE';
 };
 
-export default function MapScreen() {
+export default function AppLayout() {
+  return (
+    <Stack>
+      <Stack.Screen name="(auth)/login" options={{ headerShown: false }} />
+    </Stack>
+  );
+}
+
+function MapScreen() {
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [users, setUsers] = useState<Driver[]>([]);
   const router = useRouter();
 
   useEffect(() => {
@@ -120,6 +130,23 @@ export default function MapScreen() {
   }, [isAdmin]);
 
   useEffect(() => {
+    const fetchUsers = async () => {
+      const { data, error } = await supabase
+        .from('USERS')
+        .select('*');
+
+      if (error) {
+        console.error('Erro ao buscar usuários:', error);
+        return;
+      }
+
+      setUsers(data);
+    };
+
+    fetchUsers();
+  }, []);
+
+  useEffect(() => {
     if (!isAdmin) return;
 
     const channel = supabase
@@ -172,6 +199,12 @@ export default function MapScreen() {
 
   return (
     <View style={styles.container}>
+      {users.map(user => (
+        <View key={user.id}>
+          <Text>{user.email}</Text>
+          <Text>{user.phoneNumber}</Text>
+        </View>
+      ))}
       {location && (
         <MapView
           style={styles.map}
