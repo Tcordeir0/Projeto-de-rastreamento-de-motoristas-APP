@@ -123,4 +123,4 @@ Este projeto está licenciado sob a MIT License. Veja o arquivo [LICENSE](LICENS
 
 ---
 
-Desenvolvido com ❤️ por [Seu Nome](https://github.com/seu-usuario).
+Desenvolvido com ❤️ por [Tcordeir0](https://github.com/Tcordeir0).
