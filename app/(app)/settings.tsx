@@ -20,41 +20,28 @@ const SettingsScreen = () => {
 
   useEffect(() => {
     const fetchUser = async () => {
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          const { data, error } = await supabase
-            .from('users')
-            .select('*')
-            .eq('id', user.id)
-            .maybeSingle();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data, error } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', user.id)
+          .maybeSingle();
 
-          if (error) throw error;
-          setUser(user);
+        if (error) {
+          console.error('Erro ao buscar dados:', error.message);
+        } else if (data) {
+          console.log('Dados do usuário:', data);
           setUserData(data);
-          const emailName = data?.email?.split('@')[0];
-          const formattedName = emailName
-            ?.split('.')
-            .map((part: string) => part.charAt(0).toUpperCase() + part.slice(1))
-            .join(' ');
-          setName(formattedName || '');
-          setEmail(data?.email || '');
-          setPhone(
-            data?.phoneNumber
-              ? data.phoneNumber.startsWith('+')
-                ? data.phoneNumber
-                : `+55${data.phoneNumber.replace(/[^0-9]/g, '')}`
-              : ''
-          );
-          setPhotoURL(data?.photoURL || '');
+          setName(data.name || '');
+          setEmail(data.email || '');
+          setPhone(data.phone || '');
         }
-      } catch (error) {
-        console.error('Error fetching user data:', error);
-      } finally {
+        setLoading(false);
+      } else {
         setLoading(false);
       }
     };
-
     fetchUser();
   }, []);
 
@@ -167,19 +154,21 @@ const SettingsScreen = () => {
 
   const styles = StyleSheet.create({
     container: {
-      flexGrow: 1,
-      justifyContent: 'center',
-      paddingVertical: 20,
+      flex: 1, 
+      justifyContent: 'flex-start', 
+      alignItems: 'center', 
       backgroundColor: theme.colors.background,
+      paddingTop: 20,
     },
     content: {
-      width: '100%',
+      width: '90%',
       maxWidth: 600,
       paddingHorizontal: 20,
+      paddingVertical: 20,
     },
     profilePhotoContainer: {
       alignItems: 'center',
-      marginBottom: 20,
+      marginBottom: 30,
     },
     profilePhoto: {
       width: 120,
@@ -204,61 +193,51 @@ const SettingsScreen = () => {
       flex: 1,
     },
     inputContainer: {
-      marginBottom: 15,
+      marginBottom: 20,
     },
     label: {
-      fontSize: 16,
-      marginBottom: 5,
+      fontSize: 18,
+      marginBottom: 8,
       color: theme.colors.text,
     },
     input: {
-      borderWidth: 1,
+      height: 50,
       borderColor: theme.colors.border,
+      borderWidth: 1,
       borderRadius: 5,
-      padding: 10,
-      fontSize: 16,
+      paddingHorizontal: 10,
       color: theme.colors.text,
-      backgroundColor: theme.colors.card,
     },
     button: {
-      flexDirection: 'row',
-      justifyContent: 'center',
-      alignItems: 'center',
+      backgroundColor: theme.colors.primary,
       padding: 15,
       borderRadius: 5,
-      marginTop: 10,
+      alignItems: 'center',
+      marginTop: 20,
     },
     buttonText: {
-      color: 'white',
-      fontSize: 16,
-      marginLeft: 10,
-    },
-    versionText: {
-      textAlign: 'center',
-      marginTop: 20,
-      color: theme.colors.text,
+      color: theme.colors.background,
+      fontSize: 18,
     },
   });
 
   if (loading) {
-    return <ActivityIndicator size="large" color="#0000ff" />;
+    return <View style={styles.container}><ActivityIndicator size="large" color="#0000ff" /></View>;
   }
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <View style={styles.content}>
         <View style={styles.profilePhotoContainer}>
-          <TouchableOpacity onPress={handleChangePhoto}>
+          <View style={[styles.profilePhoto, styles.profilePlaceholder]}>
             {photoURL ? (
               <Image source={{ uri: photoURL }} style={styles.profilePhoto} />
             ) : (
-              <View style={[styles.profilePhoto, styles.profilePlaceholder]}>
-                <User size={64} color={theme.colors.text} />
-              </View>
+              <User size={60} color={theme.colors.text} />
             )}
-            <View style={styles.editPhotoIcon}>
-              <Pencil size={20} color="white" />
-            </View>
+          </View>
+          <TouchableOpacity style={styles.editPhotoIcon} onPress={handleChangePhoto}>
+            <Camera size={25} color={theme.colors.background} />
           </TouchableOpacity>
         </View>
 
@@ -269,7 +248,7 @@ const SettingsScreen = () => {
               style={styles.input}
               value={name}
               onChangeText={setName}
-              editable={true}
+              editable={isEditing}
             />
           </View>
 
@@ -278,6 +257,7 @@ const SettingsScreen = () => {
             <TextInput
               style={styles.input}
               value={email}
+              onChangeText={setEmail}
               editable={false}
             />
           </View>
@@ -288,16 +268,12 @@ const SettingsScreen = () => {
               style={styles.input}
               value={phone}
               onChangeText={(text) => setPhone(`+55${text.replace(/[^0-9]/g, '')}`)}
-              editable={true}
+              editable={isEditing}
               keyboardType="phone-pad"
             />
           </View>
 
-          <TouchableOpacity 
-            style={[styles.button, { backgroundColor: theme.colors.primary }]}
-            onPress={handleSave}
-          >
-            <Save size={20} color="white" />
+          <TouchableOpacity style={styles.button} onPress={handleSave}>
             <Text style={styles.buttonText}>Salvar</Text>
           </TouchableOpacity>
 
@@ -305,7 +281,7 @@ const SettingsScreen = () => {
             style={[styles.button, { backgroundColor: '#FF3B30' }]}
             onPress={handleLogout}
           >
-            <LogOut size={20} color="white" />
+            <LogOut size={25} color="white" />
             <Text style={styles.buttonText}>Sair</Text>
           </TouchableOpacity>
 
@@ -313,11 +289,11 @@ const SettingsScreen = () => {
             style={[styles.button, { backgroundColor: '#34C759' }]}
             onPress={handleEmailVerification}
           >
-            <Mail size={20} color="white" />
+            <Mail size={25} color="white" />
             <Text style={styles.buttonText}>Enviar link de verificação</Text>
           </TouchableOpacity>
 
-          <Text style={styles.versionText}>Versão 0.0.1 Alpha</Text>
+          <Text style={{ fontSize: 16, marginTop: 20, color: theme.colors.text }}>Versão 0.0.1 Alpha</Text>
         </View>
       </View>
     </ScrollView>

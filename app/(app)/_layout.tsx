@@ -11,25 +11,36 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
 
   useEffect(() => {
     const checkAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        router.replace('/(auth)/welcome');
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        router.replace('/welcome'); // Redireciona para a tela de boas-vindas se não estiver autenticado
       }
-      setIsLoading(false);
     };
-
     checkAuth();
+  }, []);
 
+  useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (!session) {
-        router.replace('/(auth)/welcome');
+        router.replace('/welcome');
       }
+      setIsLoading(false);
     });
 
     return () => subscription?.unsubscribe();
   }, []);
 
   if (isLoading) return null;
+
+  const checkUser = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      router.replace('/welcome');
+      return null;
+    }
+  };
+
+  checkUser();
 
   return (
     <KeyboardAvoidingView

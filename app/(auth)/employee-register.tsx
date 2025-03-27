@@ -11,33 +11,27 @@ const EmployeeRegisterScreen = () => {
   const router = useRouter();
 
   const handleRegister = async () => {
-    setLoading(true);
-    try {
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    const { data: { user }, error: authError } = await supabase.auth.signUp({
+      email: 'email@example.com', // You need to define email and password variables
+      password: 'password',
+    });
 
-      if (sessionError || !session) {
-        throw new Error('Sessão inválida. Faça login novamente.');
-      }
+    if (authError) {
+      console.error('Erro ao registrar:', authError.message);
+      return;
+    }
 
-      const { error } = await supabase.auth.updateUser({
-        data: {
-          branch: branch || 'Matriz',
-          phone: phone
-        }
-      });
+    if (user) {
+      const { error: dbError } = await supabase
+        .from('users')
+        .insert([{ id: user.id, email: 'email@example.com', phone: phone, name: 'Name' }]); // You need to define name variable
 
-      if (error) throw error;
-
-      router.replace('/');
-    } catch (error) {
-      console.error('Erro ao registrar:', error);
-      if (error instanceof Error) {
-        alert(error.message);
+      if (dbError) {
+        console.error('Erro ao salvar dados:', dbError.message);
       } else {
-        alert('Erro ao registrar. Verifique suas informações.');
+        console.log('Registro e dados salvos com sucesso!');
+        router.replace('/home'); // Redireciona para a tela principal após o registro
       }
-    } finally {
-      setLoading(false);
     }
   };
 

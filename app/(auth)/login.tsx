@@ -1,25 +1,28 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Switch } from 'react-native';
 import { supabase } from '@/utils/supabase';
 import { useRouter } from 'expo-router';
 
 const LoginScreen = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
   const handleLogin = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
+      const { data: { user }, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
       if (error) throw error;
 
-      router.replace('/');
+      if (user) {
+        router.replace('/');
+      }
     } catch (error) {
       console.error('Erro ao fazer login:', error);
       alert('Erro ao fazer login. Verifique suas credenciais.');
@@ -48,6 +51,14 @@ const LoginScreen = () => {
         onChangeText={setPassword}
         secureTextEntry
       />
+
+      <View style={styles.rememberMeContainer}>
+        <Switch
+          value={rememberMe}
+          onValueChange={setRememberMe}
+        />
+        <Text style={styles.rememberMeText}>Lembrar de mim</Text>
+      </View>
 
       <TouchableOpacity style={styles.button} onPress={handleLogin} disabled={loading}>
         {loading ? (
@@ -83,6 +94,14 @@ const styles = StyleSheet.create({
     borderRadius: 5,
     paddingHorizontal: 10,
     marginBottom: 15,
+  },
+  rememberMeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  rememberMeText: {
+    marginLeft: 10,
   },
   button: {
     height: 50,
