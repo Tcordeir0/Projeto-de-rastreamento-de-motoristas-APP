@@ -27,7 +27,7 @@ const SettingsScreen = () => {
             .from('users')
             .select('*')
             .eq('id', user.id)
-            .single();
+            .maybeSingle();
 
           if (error) throw error;
           setUser(user);
