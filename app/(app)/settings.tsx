@@ -1,125 +1,176 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image, ActivityIndicator, Switch, ScrollView } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image, ActivityIndicator, Switch, ScrollView, Alert } from 'react-native';
 import { supabase } from '@/utils/supabase';
 import * as ImagePicker from 'expo-image-picker';
 import { decode } from 'base64-arraybuffer';
-import { User, Pencil, Save, LogOut, Moon, Sun, Camera, Truck, Phone, Mail, MapPin } from 'lucide-react-native';
+import { User } from '@supabase/supabase-js';
+import { User as UserIcon, Pencil, Save, LogOut, Moon, Sun, Camera, Truck, Phone, Mail, MapPin } from 'lucide-react-native';
 import { useTheme } from '@/context/ThemeContext';
+
+interface Profile {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  photoURL: string;
+}
 
 const SettingsScreen = () => {
   const { theme, toggleTheme } = useTheme();
 
-  const [user, setUser] = useState<any>(null);
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
-  const [photoURL, setPhotoURL] = useState('');
-  const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [userData, setUserData] = useState(null);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<Profile>({
+    id: '',
+    name: '',
+    email: '',
+    phone: '',
+    photoURL: '',
+  });
+  const [isEditing, setIsEditing] = useState(false);
 
   useEffect(() => {
-    const fetchUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+    fetchUserProfile();
+  }, []);
+
+  const fetchUserProfile = async () => {
+    try {
+      setLoading(true);
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
       if (user) {
+        setUser(user);
+
         const { data, error } = await supabase
           .from('users')
           .select('*')
           .eq('id', user.id)
-          .maybeSingle();
+          .single();
 
-        if (error) {
-          console.error('Erro ao buscar dados:', error.message);
+        if (error && error.code !== 'PGRST116') {
+          console.error('Error fetching profile:', error);
         } else if (data) {
-          console.log('Dados do usuário:', data);
-          setUserData(data);
-          setName(data.name || '');
-          setEmail(data.email || '');
-          setPhone(data.phone || '');
+          setProfile({
+            id: data.id,
+            name: data.name || '',
+            email: user.email || '',
+            phone: data.phone || '',
+            photoURL: data.photoURL || '',
+          });
+        } else {
+          await createUserProfile(user);
         }
-        setLoading(false);
-      } else {
-        setLoading(false);
       }
-    };
-    fetchUser();
-  }, []);
-
-  const handleSave = async () => {
-    if (!user) return;
-    setLoading(true);
-
-    try {
-      const { error } = await supabase
-        .from('users')
-        .update({ nome: name, phoneNumber: phone })
-        .eq('id', user.id);
-
-      if (error) throw error;
-
-      setIsEditing(false);
     } catch (error) {
-      console.error('Erro ao atualizar perfil:', error);
+      console.error('Error in profile fetch:', error);
     } finally {
       setLoading(false);
     }
   };
 
+  const createUserProfile = async (user: User) => {
+    try {
+      const { error } = await supabase.from('users').insert({
+        id: user.id,
+        email: user.email,
+        name: '',
+        phone: '',
+      });
+
+      if (error) throw error;
+
+      setProfile({
+        id: user.id,
+        name: '',
+        email: user.email || '',
+        phone: '',
+        photoURL: '',
+      });
+    } catch (error) {
+      console.error('Error creating profile:', error);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!user) return;
+
+    try {
+      setProfileLoading(true);
+
+      const { error } = await supabase
+        .from('users')
+        .update({
+          name: profile.name,
+          phone: profile.phone,
+        })
+        .eq('id', user.id);
+
+      if (error) throw error;
+
+      Alert.alert('Sucesso', 'Perfil atualizado com sucesso!');
+      setIsEditing(false);
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      Alert.alert('Erro', 'Não foi possível atualizar o perfil.');
+    } finally {
+      setProfileLoading(false);
+    }
+  };
+
   const handleChangePhoto = async () => {
-    console.log('Iniciando seleção de imagem...');
+    if (!user) return;
+
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
-        aspect: [4, 3],
+        aspect: [1, 1],
         quality: 1,
         base64: true,
       });
 
-      if (!result.canceled && result.assets.length > 0) {
-        const asset = result.assets[0];
-        console.log('Imagem selecionada:', asset);
+      if (!result.canceled && result.assets && result.assets[0].base64) {
+        setProfileLoading(true);
 
-        if (asset.base64) {
-          console.log('Iniciando upload da imagem...');
-          setLoading(true);
-          const fileName = `${user?.id}-profile.jpg`;
+        const fileName = `profile-${user.id}-${Date.now()}.jpg`;
+        const base64FileData = result.assets[0].base64;
 
-          const { data: uploadData, error: uploadError } = await supabase
-            .storage
-            .from('settings-imagens')
-            .upload(fileName, decode(asset.base64), {
-              contentType: asset.mimeType || 'image/jpeg',
-              upsert: true,
-            });
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from('settings-imagens')
+          .upload(fileName, decode(base64FileData), {
+            contentType: 'image/jpeg',
+            upsert: true,
+          });
 
-          console.log('Resultado do upload:', uploadData, uploadError);
+        if (uploadError) throw uploadError;
 
-          if (uploadError) throw uploadError;
+        const {
+          data: { publicUrl },
+        } = supabase.storage.from('settings-imagens').getPublicUrl(fileName);
 
-          const { data: { publicUrl } } = supabase
-            .storage
-            .from('settings-imagens')
-            .getPublicUrl(fileName);
+        const { error: updateError } = await supabase
+          .from('users')
+          .update({ photoURL: publicUrl })
+          .eq('id', user.id);
 
-          console.log('URL pública gerada:', publicUrl);
+        if (updateError) throw updateError;
 
-          const { error: profileError } = await supabase
-            .from('users')
-            .update({ photoURL: publicUrl })
-            .eq('id', user?.id);
+        setProfile({
+          ...profile,
+          photoURL: publicUrl,
+        });
 
-          console.log('Resultado da atualização do perfil:', profileError);
-
-          if (profileError) throw profileError;
-
-          setPhotoURL(publicUrl);
-        }
+        Alert.alert('Sucesso', 'Foto de perfil atualizada!');
       }
     } catch (error) {
-      console.error('Erro ao atualizar foto de perfil:', error);
+      console.error('Error updating profile photo:', error);
+      Alert.alert('Erro', 'Não foi possível atualizar a foto de perfil.');
     } finally {
-      setLoading(false);
+      setProfileLoading(false);
     }
   };
 
@@ -127,7 +178,7 @@ const SettingsScreen = () => {
     try {
       await supabase.auth.signOut();
     } catch (error) {
-      console.error('Erro ao sair:', error);
+      console.error('Error signing out:', error);
     }
   };
 
@@ -222,18 +273,22 @@ const SettingsScreen = () => {
   });
 
   if (loading) {
-    return <View style={styles.container}><ActivityIndicator size="large" color="#0000ff" /></View>;
+    return (
+      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+        <ActivityIndicator size='large' color={theme.colors.primary} />
+      </View>
+    );
   }
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
+    <ScrollView style={{ flex: 1, backgroundColor: theme.colors.background }}>
       <View style={styles.content}>
         <View style={styles.profilePhotoContainer}>
           <View style={[styles.profilePhoto, styles.profilePlaceholder]}>
-            {photoURL ? (
-              <Image source={{ uri: photoURL }} style={styles.profilePhoto} />
+            {profile.photoURL ? (
+              <Image source={{ uri: profile.photoURL }} style={styles.profilePhoto} />
             ) : (
-              <User size={60} color={theme.colors.text} />
+              <UserIcon size={60} color={theme.colors.text} />
             )}
           </View>
           <TouchableOpacity style={styles.editPhotoIcon} onPress={handleChangePhoto}>
@@ -246,8 +301,8 @@ const SettingsScreen = () => {
             <Text style={styles.label}>Nome</Text>
             <TextInput
               style={styles.input}
-              value={name}
-              onChangeText={setName}
+              value={profile.name}
+              onChangeText={(text) => setProfile({ ...profile, name: text })}
               editable={isEditing}
             />
           </View>
@@ -256,8 +311,7 @@ const SettingsScreen = () => {
             <Text style={styles.label}>Email</Text>
             <TextInput
               style={styles.input}
-              value={email}
-              onChangeText={setEmail}
+              value={profile.email}
               editable={false}
             />
           </View>
@@ -266,8 +320,8 @@ const SettingsScreen = () => {
             <Text style={styles.label}>Telefone</Text>
             <TextInput
               style={styles.input}
-              value={phone}
-              onChangeText={(text) => setPhone(`+55${text.replace(/[^0-9]/g, '')}`)}
+              value={profile.phone}
+              onChangeText={(text) => setProfile({ ...profile, phone: `+55${text.replace(/[^0-9]/g, '')}` })}
               editable={isEditing}
               keyboardType="phone-pad"
             />

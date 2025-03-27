@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/utils/supabase';
 import { KeyboardAvoidingView, Platform } from 'react-native';
+import { AuthChangeEvent, Session } from '@supabase/supabase-js';
 
 const Layout = ({ children }: { children: React.ReactNode }) => {
   const router = useRouter();
@@ -20,7 +21,7 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event: AuthChangeEvent, session: Session | null) => {
       if (!session) {
         router.replace('/welcome');
       }
