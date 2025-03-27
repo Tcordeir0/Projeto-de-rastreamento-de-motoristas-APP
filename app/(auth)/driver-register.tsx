@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, Alert } from 'react-native';
 import { supabase } from '@/utils/supabase';
 import { useRouter } from 'expo-router';
 
@@ -12,7 +12,13 @@ const DriverRegisterScreen = () => {
   const router = useRouter();
 
   const handleRegister = async () => {
+    if (!vehicle || !licensePlate || !driverLicense || !truckType) {
+      Alert.alert('Erro', 'Preencha todos os campos');
+      return;
+    }
+
     setLoading(true);
+
     try {
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
@@ -20,25 +26,24 @@ const DriverRegisterScreen = () => {
         throw new Error('Sessão inválida. Faça login novamente.');
       }
 
-      const { error } = await supabase.auth.updateUser({
-        data: {
-          vehicle,
-          license_plate: licensePlate,
-          driver_license: driverLicense,
-          truck_type: truckType
-        }
-      });
+      const { error: dbError } = await supabase
+        .from('drivers')
+        .insert([{ 
+          id: session.user.id, 
+          vehicle: vehicle, 
+          license_plate: licensePlate, 
+          driver_license: driverLicense, 
+          truck_type: truckType 
+        }]);
 
-      if (error) throw error;
-
-      router.replace('/');
-    } catch (error) {
-      console.error('Erro ao registrar:', error);
-      if (error instanceof Error) {
-        alert(error.message);
+      if (dbError) {
+        Alert.alert('Erro ao salvar dados:', dbError.message);
       } else {
-        alert('Erro ao registrar. Verifique suas informações.');
+        Alert.alert('Sucesso', 'Registro concluído!');
+        router.replace('/');
       }
+    } catch (error: any) {
+      Alert.alert('Erro inesperado:', error.message);
     } finally {
       setLoading(false);
     }

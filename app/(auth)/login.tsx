@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Switch } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Switch, Alert } from 'react-native';
 import { supabase } from '@/utils/supabase';
 import { useRouter } from 'expo-router';
 
@@ -11,21 +11,46 @@ const LoginScreen = () => {
   const router = useRouter();
 
   const handleLogin = async () => {
+    if (!email || !password) {
+      Alert.alert('Erro', 'Preencha todos os campos');
+      return;
+    }
+
     setLoading(true);
+
     try {
       const { data: { user }, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
+        email: email,
+        password: password,
       });
 
-      if (error) throw error;
+      if (error) {
+        Alert.alert('Erro ao fazer login:', error.message);
+        return;
+      }
 
       if (user) {
-        router.replace('/');
+        const isAdmin = email.endsWith('@borgnotransportes.com.br');
+        const table = isAdmin ? 'admins' : 'drivers';
+
+        // Buscar os dados do usuário
+        const { data: userData, error: dbError } = await supabase
+          .from(table)
+          .select('*')
+          .eq('id', user.id)
+          .single();
+
+        if (dbError) {
+          Alert.alert('Erro ao buscar dados:', dbError.message);
+          return;
+        }
+
+        // Redirecionar com os dados carregados
+        const route = isAdmin ? '/(app)/admin' : '/(app)/driver';
+        router.replace(route);
       }
-    } catch (error) {
-      console.error('Erro ao fazer login:', error);
-      alert('Erro ao fazer login. Verifique suas credenciais.');
+    } catch (error: any) {
+      Alert.alert('Erro inesperado:', error.message);
     } finally {
       setLoading(false);
     }

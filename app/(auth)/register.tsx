@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from 'react-native';
 import { supabase } from '@/utils/supabase';
 import { useRouter } from 'expo-router';
 
@@ -7,44 +7,34 @@ const RegisterScreen = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [needsConfirmation, setNeedsConfirmation] = useState(false);
   const router = useRouter();
 
   const handleRegister = async () => {
+    if (!email || !password) {
+      Alert.alert('Erro', 'Preencha todos os campos');
+      return;
+    }
+
     setLoading(true);
+
     try {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password
+      const { data: { user }, error } = await supabase.auth.signUp({
+        email: email,
+        password: password,
       });
 
-      if (error) throw error;
-
-      if (data.user && !data.user.email_confirmed_at) {
-        setNeedsConfirmation(true);
-        alert('Por favor, verifique seu email e clique no link de confirmação para ativar sua conta.');
+      if (error) {
+        Alert.alert('Erro ao registrar:', error.message);
         return;
       }
 
-      // Verificar novamente o status de confirmação
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-
-      if (sessionError || !session?.user?.email_confirmed_at) {
-        throw new Error('Email ainda não confirmado. Verifique sua caixa de entrada.');
+      if (user) {
+        const isAdmin = email.endsWith('@borgnotransportes.com.br');
+        const route = isAdmin ? '/(auth)/employee-register' : '/(auth)/driver-register';
+        router.replace({ pathname: route, params: { email } });
       }
-
-      if (email.endsWith('@borgnotransportes.com.br')) {
-        router.replace('/(auth)/employee-register');
-      } else {
-        router.replace('/(auth)/driver-register');
-      }
-    } catch (error) {
-      console.error('Erro ao registrar:', error);
-      if (error instanceof Error) {
-        alert(error.message);
-      } else {
-        alert('Erro ao registrar. Verifique suas informações.');
-      }
+    } catch (error: any) {
+      Alert.alert('Erro inesperado:', error.message);
     } finally {
       setLoading(false);
     }
@@ -78,19 +68,6 @@ const RegisterScreen = () => {
           <Text style={styles.buttonText}>Criar conta</Text>
         )}
       </TouchableOpacity>
-
-      {needsConfirmation && (
-        <TouchableOpacity
-          style={styles.secondaryButton}
-          onPress={async () => {
-            const { error } = await supabase.auth.resend({ type: 'signup', email });
-            if (error) alert('Erro ao reenviar email de confirmação.');
-            else alert('Email de confirmação reenviado com sucesso!');
-          }}
-        >
-          <Text style={styles.secondaryButtonText}>Reenviar email de confirmação</Text>
-        </TouchableOpacity>
-      )}
 
       <TouchableOpacity style={styles.secondaryButton} onPress={() => router.replace('/(auth)/welcome')}>
         <Text style={styles.secondaryButtonText}>Voltar</Text>

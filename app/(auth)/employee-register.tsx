@@ -1,37 +1,54 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Modal, ScrollView, TextInput } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Modal, ScrollView, TextInput, Alert } from 'react-native';
 import { supabase } from '@/utils/supabase';
 import { useRouter } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 
 const EmployeeRegisterScreen = () => {
-  const [branch, setBranch] = useState<string | null>(null);
+  const { email: emailParam } = useLocalSearchParams();
+  const email = Array.isArray(emailParam) ? emailParam[0] : emailParam || '';
   const [phone, setPhone] = useState<string>("");
+  const [name, setName] = useState<string>("");
+  const [branch, setBranch] = useState<string | null>(null);
   const [showDropdown, setShowDropdown] = useState(false);
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
   const handleRegister = async () => {
-    const { data: { user }, error: authError } = await supabase.auth.signUp({
-      email: 'email@example.com', // You need to define email and password variables
-      password: 'password',
-    });
-
-    if (authError) {
-      console.error('Erro ao registrar:', authError.message);
+    if (!phone || !branch || !name) {
+      Alert.alert('Erro', 'Preencha todos os campos');
       return;
     }
 
-    if (user) {
-      const { error: dbError } = await supabase
-        .from('users')
-        .insert([{ id: user.id, email: 'email@example.com', phone: phone, name: 'Name' }]); // You need to define name variable
+    setLoading(true);
 
-      if (dbError) {
-        console.error('Erro ao salvar dados:', dbError.message);
-      } else {
-        console.log('Registro e dados salvos com sucesso!');
-        router.replace('/home'); // Redireciona para a tela principal após o registro
+    try {
+      const { data: { user }, error: authError } = await supabase.auth.signUp({
+        email: email,
+        password: 'password',
+      });
+
+      if (authError) {
+        Alert.alert('Erro ao registrar:', authError.message);
+        return;
       }
+
+      if (user) {
+        const { error: dbError } = await supabase
+          .from('admins')
+          .insert([{ id: user.id, phone: phone, name: name, branch: branch }]);
+
+        if (dbError) {
+          Alert.alert('Erro ao salvar dados:', dbError.message);
+        } else {
+          Alert.alert('Sucesso', 'Registro concluído!');
+          router.replace('/app');
+        }
+      }
+    } catch (error: any) {
+      Alert.alert('Erro inesperado:', error.message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -105,16 +122,34 @@ const EmployeeRegisterScreen = () => {
 
       <TextInput
         style={styles.input}
+        placeholder="Nome"
+        value={name}
+        onChangeText={(text) => setName(text)}
+      />
+
+      <TextInput
+        style={styles.input}
         placeholder="Número de telefone"
         value={phone}
         onChangeText={setPhone}
         keyboardType="phone-pad"
       />
 
+      <TextInput
+        style={styles.input}
+        placeholder="Email"
+        value={email}
+        editable={false}
+      />
+
       <TouchableOpacity 
         style={[styles.button, !branch && styles.disabledButton]} 
-        onPress={handleRegister} 
-        disabled={!branch || !phone || loading}
+        onPress={() => {
+          if (!loading) {
+            handleRegister();
+          }
+        }} 
+        disabled={!branch || !phone || !name || loading}
       >
         {loading ? (
           <ActivityIndicator color="#fff" />

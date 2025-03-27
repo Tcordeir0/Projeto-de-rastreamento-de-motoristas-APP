@@ -13,6 +13,7 @@ interface Profile {
   email: string;
   phone: string;
   photoURL: string;
+  branch: string;
 }
 
 const SettingsScreen = () => {
@@ -27,8 +28,12 @@ const SettingsScreen = () => {
     email: '',
     phone: '',
     photoURL: '',
+    branch: '',
   });
+  const [branch, setBranch] = useState<string>('');
   const [isEditing, setIsEditing] = useState(false);
+  const [userData, setUserData] = useState<any>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     fetchUserProfile();
@@ -44,6 +49,23 @@ const SettingsScreen = () => {
 
       if (user) {
         setUser(user);
+        setIsAdmin(user?.email?.endsWith('@borgnotransportes.com.br') || false);
+
+        if (isAdmin) {
+          const { data: adminData } = await supabase
+            .from('employees')
+            .select('*')
+            .eq('id', user?.id)
+            .single();
+          setUserData(adminData);
+        } else {
+          const { data: driverData } = await supabase
+            .from('drivers')
+            .select('*')
+            .eq('id', user?.id)
+            .single();
+          setUserData(driverData);
+        }
 
         const { data, error } = await supabase
           .from('users')
@@ -53,6 +75,14 @@ const SettingsScreen = () => {
 
         if (error && error.code !== 'PGRST116') {
           console.error('Error fetching profile:', error);
+          setProfile({
+            id: user.id,
+            name: '',
+            email: user.email || '',
+            phone: '',
+            photoURL: '',
+            branch: '',
+          });
         } else if (data) {
           setProfile({
             id: data.id,
@@ -60,13 +90,32 @@ const SettingsScreen = () => {
             email: user.email || '',
             phone: data.phone || '',
             photoURL: data.photoURL || '',
+            branch: data.branch || '',
           });
+          setBranch(data.branch || '');
         } else {
           await createUserProfile(user);
         }
+      } else {
+        setProfile({
+          id: '',
+          name: '',
+          email: '',
+          phone: '',
+          photoURL: '',
+          branch: '',
+        });
       }
     } catch (error) {
       console.error('Error in profile fetch:', error);
+      setProfile({
+        id: '',
+        name: '',
+        email: '',
+        phone: '',
+        photoURL: '',
+        branch: '',
+      });
     } finally {
       setLoading(false);
     }
@@ -79,6 +128,7 @@ const SettingsScreen = () => {
         email: user.email,
         name: '',
         phone: '',
+        branch: '',
       });
 
       if (error) throw error;
@@ -89,7 +139,9 @@ const SettingsScreen = () => {
         email: user.email || '',
         phone: '',
         photoURL: '',
+        branch: '',
       });
+      setBranch('');
     } catch (error) {
       console.error('Error creating profile:', error);
     }
@@ -106,6 +158,7 @@ const SettingsScreen = () => {
         .update({
           name: profile.name,
           phone: profile.phone,
+          branch: branch,
         })
         .eq('id', user.id);
 
@@ -154,7 +207,7 @@ const SettingsScreen = () => {
 
         const { error: updateError } = await supabase
           .from('users')
-          .update({ photoURL: publicUrl })
+          .update({ photo_url: publicUrl })
           .eq('id', user.id);
 
         if (updateError) throw updateError;
@@ -297,6 +350,19 @@ const SettingsScreen = () => {
         </View>
 
         <View style={styles.form}>
+          {isAdmin ? (
+            <>
+              <Text>Bem-vindo, Administrador!</Text>
+              <Text>Filial: {userData?.branch}</Text>
+              <Text>Telefone: {userData?.phone}</Text>
+            </>
+          ) : (
+            <>
+              <Text>Bem-vindo, Motorista!</Text>
+              <Text>Veículo: {userData?.vehicle_type}</Text>
+              <Text>Carteira: {userData?.license_number}</Text>
+            </>
+          )}
           <View style={styles.inputContainer}>
             <Text style={styles.label}>Nome</Text>
             <TextInput
@@ -324,6 +390,17 @@ const SettingsScreen = () => {
               onChangeText={(text) => setProfile({ ...profile, phone: `+55${text.replace(/[^0-9]/g, '')}` })}
               editable={isEditing}
               keyboardType="phone-pad"
+            />
+          </View>
+
+          <View style={styles.inputContainer}>
+            <Text style={styles.label}>Filial</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Filial"
+              value={branch}
+              onChangeText={(text) => setBranch(text)}
+              editable={isEditing}
             />
           </View>
 
