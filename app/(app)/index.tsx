@@ -132,7 +132,7 @@ function MapScreen() {
   useEffect(() => {
     const fetchUsers = async () => {
       const { data, error } = await supabase
-        .from('USERS')
+        .from('users')
         .select('*');
 
       if (error) {
@@ -252,25 +252,26 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   map: {
-    width: '100%',
-    height: '100%',
+    flex: 1,
   },
   calloutContainer: {
-    minWidth: 200,
+    width: 200,
     padding: 10,
   },
-  calloutTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
+  calloutText: {
+    fontSize: 14,
     marginBottom: 5,
   },
   callButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 10,
+    justifyContent: 'center',
+    backgroundColor: '#007AFF',
+    padding: 8,
+    borderRadius: 5,
   },
   callButtonText: {
-    color: '#007AFF',
+    color: 'white',
     marginLeft: 5,
   },
 });

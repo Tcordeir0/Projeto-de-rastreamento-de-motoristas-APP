@@ -24,7 +24,7 @@ const SettingsScreen = () => {
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
           const { data, error } = await supabase
-            .from('Rastreamento.users')
+            .from('users')
             .select('*')
             .eq('id', user.id)
             .single();
@@ -32,9 +32,20 @@ const SettingsScreen = () => {
           if (error) throw error;
           setUser(user);
           setUserData(data);
-          setName(data?.nome || '');
+          const emailName = data?.email?.split('@')[0];
+          const formattedName = emailName
+            ?.split('.')
+            .map((part: string) => part.charAt(0).toUpperCase() + part.slice(1))
+            .join(' ');
+          setName(formattedName || '');
           setEmail(data?.email || '');
-          setPhone(data?.phoneNumber || '');
+          setPhone(
+            data?.phoneNumber
+              ? data.phoneNumber.startsWith('+')
+                ? data.phoneNumber
+                : `+55${data.phoneNumber.replace(/[^0-9]/g, '')}`
+              : ''
+          );
           setPhotoURL(data?.photoURL || '');
         }
       } catch (error) {
@@ -53,7 +64,7 @@ const SettingsScreen = () => {
 
     try {
       const { error } = await supabase
-        .from('Rastreamento.users')
+        .from('users')
         .update({ nome: name, phoneNumber: phone })
         .eq('id', user.id);
 
@@ -68,48 +79,60 @@ const SettingsScreen = () => {
   };
 
   const handleChangePhoto = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [4, 3],
-      quality: 1,
-      base64: true,
-    });
+    console.log('Iniciando seleção de imagem...');
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 1,
+        base64: true,
+      });
 
-    if (!result.canceled && result.assets[0].base64) {
-      setLoading(true);
-      try {
-        const fileName = `${user?.id}-profile.jpg`;
-        const base64FileData = result.assets[0].base64;
+      if (!result.canceled && result.assets.length > 0) {
+        const asset = result.assets[0];
+        console.log('Imagem selecionada:', asset);
 
-        const { data: uploadData, error: uploadError } = await supabase
-          .storage
-          .from('profile-images')
-          .upload(fileName, decode(base64FileData), {
-            contentType: 'image/jpeg',
-            upsert: true
-          });
+        if (asset.base64) {
+          console.log('Iniciando upload da imagem...');
+          setLoading(true);
+          const fileName = `${user?.id}-profile.jpg`;
 
-        if (uploadError) throw uploadError;
+          const { data: uploadData, error: uploadError } = await supabase
+            .storage
+            .from('settings-imagens')
+            .upload(fileName, decode(asset.base64), {
+              contentType: asset.mimeType || 'image/jpeg',
+              upsert: true,
+            });
 
-        const { data: { publicUrl } } = supabase
-          .storage
-          .from('profile-images')
-          .getPublicUrl(fileName);
+          console.log('Resultado do upload:', uploadData, uploadError);
 
-        const { error: profileError } = await supabase
-          .from('Rastreamento.users')
-          .update({ photoURL: publicUrl })
-          .eq('id', user?.id);
+          if (uploadError) throw uploadError;
 
-        if (profileError) throw profileError;
+          const { data: { publicUrl } } = supabase
+            .storage
+            .from('settings-imagens')
+            .getPublicUrl(fileName);
 
-        setPhotoURL(publicUrl);
-      } catch (error) {
-        console.error('Erro ao atualizar foto de perfil:', error);
-      } finally {
-        setLoading(false);
+          console.log('URL pública gerada:', publicUrl);
+
+          const { error: profileError } = await supabase
+            .from('users')
+            .update({ photoURL: publicUrl })
+            .eq('id', user?.id);
+
+          console.log('Resultado da atualização do perfil:', profileError);
+
+          if (profileError) throw profileError;
+
+          setPhotoURL(publicUrl);
+        }
       }
+    } catch (error) {
+      console.error('Erro ao atualizar foto de perfil:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -118,6 +141,27 @@ const SettingsScreen = () => {
       await supabase.auth.signOut();
     } catch (error) {
       console.error('Erro ao sair:', error);
+    }
+  };
+
+  const handleEmailVerification = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user || !user.email) {
+      alert('Nenhum email encontrado. Por favor, faça login primeiro.');
+      return;
+    }
+
+    const { data, error } = await supabase.auth.signInWithOtp({
+      email: user.email,
+      options: {
+        emailRedirectTo: 'https://yourapp.com/welcome',
+      },
+    });
+
+    if (error) {
+      alert('Erro ao enviar link de verificação: ' + error.message);
+    } else {
+      alert('Link de verificação enviado para seu email!');
     }
   };
 
@@ -141,6 +185,12 @@ const SettingsScreen = () => {
       width: 120,
       height: 120,
       borderRadius: 60,
+      backgroundColor: '#f0f0f0',
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    profilePlaceholder: {
+      backgroundColor: theme.colors.card,
     },
     editPhotoIcon: {
       position: 'absolute',
@@ -170,61 +220,16 @@ const SettingsScreen = () => {
       color: theme.colors.text,
       backgroundColor: theme.colors.card,
     },
-    settingItem: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      marginBottom: 15,
-    },
-    settingLeft: {
-      flexDirection: 'row',
-      alignItems: 'center',
-    },
-    settingText: {
-      marginLeft: 10,
-      fontSize: 16,
-      color: theme.colors.text,
-    },
-    saveButton: {
-      flexDirection: 'row',
-      justifyContent: 'center',
-      alignItems: 'center',
-      backgroundColor: theme.colors.primary,
-      padding: 15,
-      borderRadius: 5,
-      marginTop: 20,
-    },
-    saveButtonText: {
-      color: '#FFFFFF',
-      fontSize: 16,
-      marginLeft: 10,
-    },
-    editButton: {
-      flexDirection: 'row',
-      justifyContent: 'center',
-      alignItems: 'center',
-      backgroundColor: theme.colors.primary,
-      padding: 15,
-      borderRadius: 5,
-      marginTop: 20,
-    },
-    editButtonText: {
-      color: '#FFFFFF',
-      fontSize: 16,
-      marginLeft: 10,
-    },
-    logoutButton: {
+    button: {
       flexDirection: 'row',
       justifyContent: 'center',
       alignItems: 'center',
       padding: 15,
       borderRadius: 5,
-      borderWidth: 1,
-      borderColor: '#FF3B30',
-      marginTop: 20,
+      marginTop: 10,
     },
-    logoutText: {
-      color: '#FF3B30',
+    buttonText: {
+      color: 'white',
       fontSize: 16,
       marginLeft: 10,
     },
@@ -232,7 +237,6 @@ const SettingsScreen = () => {
       textAlign: 'center',
       marginTop: 20,
       color: theme.colors.text,
-      fontSize: 12,
     },
   });
 
@@ -243,18 +247,20 @@ const SettingsScreen = () => {
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <View style={styles.content}>
-        <TouchableOpacity style={styles.profilePhotoContainer} onPress={handleChangePhoto}>
-          {photoURL ? (
-            <Image source={{ uri: photoURL }} style={styles.profilePhoto} />
-          ) : (
-            <User size={64} color={theme.colors.text} />
-          )}
-          {!loading && (
+        <View style={styles.profilePhotoContainer}>
+          <TouchableOpacity onPress={handleChangePhoto}>
+            {photoURL ? (
+              <Image source={{ uri: photoURL }} style={styles.profilePhoto} />
+            ) : (
+              <View style={[styles.profilePhoto, styles.profilePlaceholder]}>
+                <User size={64} color={theme.colors.text} />
+              </View>
+            )}
             <View style={styles.editPhotoIcon}>
-              <Pencil size={20} color="#fff" />
+              <Pencil size={20} color="white" />
             </View>
-          )}
-        </TouchableOpacity>
+          </TouchableOpacity>
+        </View>
 
         <View style={styles.form}>
           <View style={styles.inputContainer}>
@@ -263,7 +269,7 @@ const SettingsScreen = () => {
               style={styles.input}
               value={name}
               onChangeText={setName}
-              editable={isEditing}
+              editable={true}
             />
           </View>
 
@@ -272,7 +278,6 @@ const SettingsScreen = () => {
             <TextInput
               style={styles.input}
               value={email}
-              onChangeText={setEmail}
               editable={false}
             />
           </View>
@@ -282,51 +287,38 @@ const SettingsScreen = () => {
             <TextInput
               style={styles.input}
               value={phone}
-              onChangeText={setPhone}
-              editable={isEditing}
+              onChangeText={(text) => setPhone(`+55${text.replace(/[^0-9]/g, '')}`)}
+              editable={true}
+              keyboardType="phone-pad"
             />
           </View>
 
-          <View style={styles.settingItem}>
-            <View style={styles.settingLeft}>
-              {theme.mode === 'dark' ? (
-                <Moon size={24} color={theme.colors.primary} />
-              ) : (
-                <Sun size={24} color={theme.colors.primary} />
-              )}
-              <Text style={styles.settingText}>Modo Escuro</Text>
-            </View>
-            <Switch
-              value={theme.mode === 'dark'}
-              onValueChange={toggleTheme}
-              trackColor={{ false: '#767577', true: '#81b0ff' }}
-              thumbColor={theme.mode === 'dark' ? theme.colors.primary : '#f4f3f4'}
-            />
-          </View>
+          <TouchableOpacity 
+            style={[styles.button, { backgroundColor: theme.colors.primary }]}
+            onPress={handleSave}
+          >
+            <Save size={20} color="white" />
+            <Text style={styles.buttonText}>Salvar</Text>
+          </TouchableOpacity>
 
-          {isEditing ? (
-            <TouchableOpacity style={styles.saveButton} onPress={handleSave} disabled={loading}>
-              {loading ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Save size={20} color="#fff" />
-              )}
-              <Text style={styles.saveButtonText}>Salvar</Text>
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity style={styles.editButton} onPress={() => setIsEditing(true)}>
-              <Pencil size={20} color="#fff" />
-              <Text style={styles.editButtonText}>Editar</Text>
-            </TouchableOpacity>
-          )}
+          <TouchableOpacity 
+            style={[styles.button, { backgroundColor: '#FF3B30' }]}
+            onPress={handleLogout}
+          >
+            <LogOut size={20} color="white" />
+            <Text style={styles.buttonText}>Sair</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={[styles.button, { backgroundColor: '#34C759' }]}
+            onPress={handleEmailVerification}
+          >
+            <Mail size={20} color="white" />
+            <Text style={styles.buttonText}>Enviar link de verificação</Text>
+          </TouchableOpacity>
+
+          <Text style={styles.versionText}>Versão 0.0.1 Alpha</Text>
         </View>
-
-        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-          <LogOut size={24} color="#FF3B30" />
-          <Text style={styles.logoutText}>Sair</Text>
-        </TouchableOpacity>
-
-        <Text style={styles.versionText}>Versão 0.0.1 Alpha</Text>
       </View>
     </ScrollView>
   );
