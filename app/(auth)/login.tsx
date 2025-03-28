@@ -46,7 +46,7 @@ const LoginScreen = () => {
         }
 
         // Redirecionar com os dados carregados
-        const route = isAdmin ? '/(app)/admin' : '/(app)/driver';
+        const route = isAdmin ? '/(app)/settings' : '/(app)';
         router.replace(route);
       }
     } catch (error: any) {
