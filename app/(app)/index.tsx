@@ -1,210 +1,208 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Linking } from 'react-native';
-import MapView, { Marker, Callout } from 'react-native-maps';
-import * as Location from 'expo-location';
-import { supabase } from '@/utils/supabase';
-import { Phone } from 'lucide-react-native';
-import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { Stack } from 'expo-router';
+"use client"
+
+import { useEffect, useState } from "react"
+import { View, Text, TouchableOpacity, StyleSheet, Linking, Image } from "react-native"
+import MapView, { Marker, Callout } from "react-native-maps"
+import * as Location from "expo-location"
+import { supabase } from "@/utils/supabase"
+import { Phone } from "lucide-react-native"
+import { useRouter } from "expo-router"
+import { Ionicons } from "@expo/vector-icons"
 
 type Driver = {
-  id: string;
-  email: string;
-  phoneNumber: string;
-  truckType: string;
+  id: string
+  email: string
+  phoneNumber: string
+  truckType: string
   location: {
-    latitude: number;
-    longitude: number;
-    timestamp: number;
-  };
-  isAdmin?: boolean;
-};
-
-type SupabasePayload = {
-  new: Driver;
-  old: Driver;
-  eventType: 'INSERT' | 'UPDATE' | 'DELETE';
-};
-
-export default function AppLayout() {
-  return (
-    <Stack>
-      <Stack.Screen name="(auth)/login" options={{ headerShown: false }} />
-    </Stack>
-  );
+    latitude: number
+    longitude: number
+    timestamp: number
+  }
+  isAdmin?: boolean
 }
 
-function MapScreen() {
-  const [location, setLocation] = useState<Location.LocationObject | null>(null);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [drivers, setDrivers] = useState<Driver[]>([]);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [users, setUsers] = useState<Driver[]>([]);
-  const router = useRouter();
+type SupabasePayload = {
+  new: Driver
+  old: Driver
+  eventType: "INSERT" | "UPDATE" | "DELETE"
+}
 
+export default function MapScreen() {
+  const [location, setLocation] = useState<Location.LocationObject | null>(null)
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const [drivers, setDrivers] = useState<Driver[]>([])
+  const [isAdmin, setIsAdmin] = useState(false)
+  const [mapReady, setMapReady] = useState(false)
+  const router = useRouter()
+
+  // Verificar sessão e determinar se é admin
   useEffect(() => {
     const checkSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
 
       if (!session) {
-        router.replace('/(auth)/login');
+        router.replace("/(auth)/login")
+        return
       } else {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return null; 
-        setIsAdmin(user.user_metadata?.isAdmin ?? false); 
+        const {
+          data: { user },
+        } = await supabase.auth.getUser()
+        if (!user) return
+
+        // Definir se é admin baseado nos metadados do usuário
+        const userIsAdmin = user.user_metadata?.isAdmin ?? false
+        setIsAdmin(userIsAdmin)
+
+        console.log("Usuário logado como:", userIsAdmin ? "Admin" : "Motorista")
       }
-    };
+    }
 
-    checkSession();
-  }, []);
+    checkSession()
+  }, [])
 
+  // Carregar motoristas iniciais (apenas para admin)
   useEffect(() => {
-    if (!isAdmin) return;
+    if (!isAdmin) return
 
     const loadInitialDrivers = async () => {
-      const { data, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('isAdmin', false);
+      const { data, error } = await supabase.from("users").select("*").eq("isAdmin", false)
 
       if (error) {
-        console.error('Erro ao carregar motoristas:', error);
-        return;
+        console.error("Erro ao carregar motoristas:", error)
+        return
       }
 
       const driversData = data
-        .filter(driver => driver.location)
-        .map(driver => ({
+        .filter((driver) => driver.location)
+        .map((driver) => ({
           id: driver.id,
           email: driver.email,
-          phoneNumber: driver.phoneNumber,
-          truckType: driver.truckType,
+          phoneNumber: driver.phoneNumber || "",
+          truckType: driver.truckType || "",
           location: driver.location,
-          isAdmin: driver.isAdmin ?? false, 
-        }));
+          isAdmin: driver.isAdmin ?? false,
+        }))
 
-      setDrivers(driversData);
-    };
+      setDrivers(driversData)
+      console.log(`Carregados ${driversData.length} motoristas`)
+    }
 
-    loadInitialDrivers();
-  }, [isAdmin]);
+    loadInitialDrivers()
+  }, [isAdmin])
 
+  // Solicitar e monitorar localização
   useEffect(() => {
-    (async () => {
-      let { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        setErrorMsg('Permission to access location was denied');
-        return;
+    ;(async () => {
+      const { status } = await Location.requestForegroundPermissionsAsync()
+      if (status !== "granted") {
+        setErrorMsg("Permissão para acessar localização foi negada")
+        return
       }
 
-      let location = await Location.getCurrentPositionAsync({});
-      setLocation(location);
-
-      Location.watchPositionAsync(
-        {
+      try {
+        const location = await Location.getCurrentPositionAsync({
           accuracy: Location.Accuracy.High,
-          timeInterval: 5000,
-          distanceInterval: 10,
-        },
-        async (newLocation) => {
-          setLocation(newLocation);
+        })
+        setLocation(location)
+        console.log("Localização inicial obtida:", location.coords)
 
-          if (!isAdmin) {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) return null; 
-            await supabase
-              .from('users')
-              .update({
-                location: {
-                  latitude: newLocation.coords.latitude,
-                  longitude: newLocation.coords.longitude,
-                  timestamp: newLocation.timestamp,
-                },
-              })
-              .eq('id', user.user_metadata.id);
-          }
+        // Monitorar mudanças de localização
+        const locationSubscription = await Location.watchPositionAsync(
+          {
+            accuracy: Location.Accuracy.High,
+            timeInterval: 5000,
+            distanceInterval: 10,
+          },
+          async (newLocation) => {
+            setLocation(newLocation)
+            console.log("Nova localização:", newLocation.coords)
+
+            // Se não for admin, atualizar localização no Supabase
+            if (!isAdmin) {
+              const {
+                data: { user },
+              } = await supabase.auth.getUser()
+              if (!user) return
+
+              await supabase
+                .from("users")
+                .update({
+                  location: {
+                    latitude: newLocation.coords.latitude,
+                    longitude: newLocation.coords.longitude,
+                    timestamp: newLocation.timestamp,
+                  },
+                })
+                .eq("id", user.id)
+
+              console.log("Localização atualizada no Supabase")
+            }
+          },
+        )
+
+        return () => {
+          locationSubscription.remove()
         }
-      );
-    })();
-  }, [isAdmin]);
-
-  useEffect(() => {
-    const fetchUsers = async () => {
-      const { data, error } = await supabase
-        .from('users')
-        .select('*');
-
-      if (error) {
-        console.error('Erro ao buscar usuários:', error);
-        return;
+      } catch (error) {
+        console.error("Erro ao obter localização:", error)
+        setErrorMsg("Erro ao obter localização")
       }
+    })()
+  }, [isAdmin])
 
-      setUsers(data);
-    };
-
-    fetchUsers();
-  }, []);
-
+  // Inscrever-se para atualizações em tempo real (apenas para admin)
   useEffect(() => {
-    if (!isAdmin) return;
+    if (!isAdmin) return
 
     const channel = supabase
-      .channel('drivers')
-      .on(
-        'system',
-        { event: '*', schema: 'public', table: 'users' },
-        (payload: SupabasePayload) => {
-          if (payload.new && !payload.new.isAdmin) {
-            setDrivers(currentDrivers => {
-              const driverIndex = currentDrivers.findIndex(d => d.id === payload.new.id);
-              const updatedDriver = {
-                id: payload.new.id,
-                email: payload.new.email,
-                phoneNumber: payload.new.phoneNumber,
-                truckType: payload.new.truckType,
-                location: payload.new.location,
-                isAdmin: payload.new.isAdmin ?? false, 
-              };
+      .channel("drivers-location")
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "users" }, (payload: any) => {
+        if (payload.new && !payload.new.isAdmin && payload.new.location) {
+          console.log("Atualização de localização recebida para:", payload.new.email)
 
-              if (driverIndex >= 0) {
-                const updatedDrivers = [...currentDrivers];
-                updatedDrivers[driverIndex] = updatedDriver;
-                return updatedDrivers;
-              } else {
-                return [...currentDrivers, updatedDriver];
-              }
-            });
-          }
+          setDrivers((currentDrivers) => {
+            const driverIndex = currentDrivers.findIndex((d) => d.id === payload.new.id)
+            const updatedDriver = {
+              id: payload.new.id,
+              email: payload.new.email,
+              phoneNumber: payload.new.phoneNumber || "",
+              truckType: payload.new.truckType || "",
+              location: payload.new.location,
+              isAdmin: payload.new.isAdmin ?? false,
+            }
+
+            if (driverIndex >= 0) {
+              const updatedDrivers = [...currentDrivers]
+              updatedDrivers[driverIndex] = updatedDriver
+              return updatedDrivers
+            } else {
+              return [...currentDrivers, updatedDriver]
+            }
+          })
         }
-      )
-      .subscribe();
+      })
+      .subscribe()
+
+    console.log("Inscrito para atualizações em tempo real")
 
     return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [isAdmin]);
+      supabase.removeChannel(channel)
+    }
+  }, [isAdmin])
 
   if (errorMsg) {
     return (
       <View style={styles.container}>
-        <Text>{errorMsg}</Text>
+        <Text style={styles.errorText}>{errorMsg}</Text>
       </View>
-    );
+    )
   }
-
-  const handleCallDriver = (phoneNumber: string) => {
-    Linking.openURL(`tel:${phoneNumber}`);
-  };
 
   return (
     <View style={styles.container}>
-      {users.map(user => (
-        <View key={user.id}>
-          <Text>{user.email}</Text>
-          <Text>{user.phoneNumber}</Text>
-        </View>
-      ))}
       {location && (
         <MapView
           style={styles.map}
@@ -214,20 +212,9 @@ function MapScreen() {
             latitudeDelta: 0.0922,
             longitudeDelta: 0.0421,
           }}
+          onMapReady={() => setMapReady(true)}
         >
-          {/* Marcador para o usuário atual */}
-          <Marker
-            coordinate={{
-              latitude: location.coords.latitude,
-              longitude: location.coords.longitude,
-            }}
-            title={isAdmin ? "Você (Admin)" : "Você (Motorista)"}
-          >
-            <Ionicons name={isAdmin ? "person" : "car"} size={24} color={isAdmin ? "blue" : "black"} />
-          </Marker>
-
-          {/* Marcadores para os motoristas (visíveis apenas para admin) */}
-          {isAdmin && drivers.map((driver) => (
+          {drivers.map((driver) => (
             <Marker
               key={driver.id}
               coordinate={{
@@ -235,16 +222,26 @@ function MapScreen() {
                 longitude: driver.location.longitude,
               }}
               title={driver.email}
+              description={driver.truckType}
             >
-              <View style={{ backgroundColor: 'red', borderRadius: 12, padding: 2 }}>
-                <Ionicons name="car" size={20} color="white" />
-              </View>
+              <Callout>
+                <View>
+                  <Text>{driver.email}</Text>
+                  <Text>{driver.truckType}</Text>
+                  <TouchableOpacity
+                    onPress={() => Linking.openURL(`tel:${driver.phoneNumber}`)}
+                  >
+                    <Phone size={16} color="#000" />
+                    <Text>{driver.phoneNumber}</Text>
+                  </TouchableOpacity>
+                </View>
+              </Callout>
             </Marker>
           ))}
         </MapView>
       )}
     </View>
-  );
+  )
 }
 
 const styles = StyleSheet.create({
@@ -253,6 +250,16 @@ const styles = StyleSheet.create({
   },
   map: {
     flex: 1,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  errorText: {
+    textAlign: "center",
+    margin: 20,
+    color: "red",
   },
   calloutContainer: {
     width: 200,
@@ -263,15 +270,15 @@ const styles = StyleSheet.create({
     marginBottom: 5,
   },
   callButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#007AFF',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#007AFF",
     padding: 8,
     borderRadius: 5,
   },
   callButtonText: {
-    color: 'white',
+    color: "white",
     marginLeft: 5,
   },
-});
+})

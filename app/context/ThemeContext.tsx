@@ -1,106 +1,135 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
-import { Appearance } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+"use client"
 
+import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
+import AsyncStorage from "@react-native-async-storage/async-storage"
+
+// Defina as cores para temas claro e escuro
+const lightTheme = {
+  dark: false,
+  colors: {
+    primary: "#007AFF",
+    background: "#F2F2F7",
+    card: "#FFFFFF",
+    text: "#000000",
+    border: "#C7C7CC",
+    notification: "#FF3B30",
+    // Adicione outras cores específicas do seu app
+    cardBackground: "#FFFFFF",
+    buttonBackground: "#007AFF",
+    buttonText: "#FFFFFF",
+    inputBackground: "#F2F2F7",
+    placeholderText: "#8E8E93",
+    success: "#34C759",
+    warning: "#FF9500",
+    danger: "#FF3B30",
+  },
+}
+
+const darkTheme = {
+  dark: true,
+  colors: {
+    primary: "#0A84FF",
+    background: "#1C1C1E",
+    card: "#2C2C2E",
+    text: "#FFFFFF",
+    border: "#38383A",
+    notification: "#FF453A",
+    // Adicione outras cores específicas do seu app
+    cardBackground: "#2C2C2E",
+    buttonBackground: "#0A84FF",
+    buttonText: "#FFFFFF",
+    inputBackground: "#38383A",
+    placeholderText: "#8E8E93",
+    success: "#30D158",
+    warning: "#FF9F0A",
+    danger: "#FF453A",
+  },
+}
+
+// Defina o tipo para o tema
 type Theme = {
-  mode: 'light' | 'dark';
+  dark: boolean
   colors: {
-    primary: string;
-    primaryLight: string;
-    background: string;
-    card: string;
-    text: string;
-    textSecondary: string;
-    border: string;
-    notification: string;
-    danger: string;
-    success: string;
-    inputBackground: string;
-  };
-};
+    primary: string
+    background: string
+    card: string
+    text: string
+    border: string
+    notification: string
+    cardBackground: string
+    buttonBackground: string
+    buttonText: string
+    inputBackground: string
+    placeholderText: string
+    success: string
+    warning: string
+    danger: string
+    [key: string]: string
+  }
+}
 
-const lightTheme: Theme = {
-  mode: 'light',
-  colors: {
-    primary: '#007AFF',
-    primaryLight: '#55efc4',
-    background: '#FFFFFF',
-    card: '#F2F2F2',
-    text: '#000000',
-    textSecondary: '#636e72',
-    border: '#CCCCCC',
-    notification: '#FF3B30',
-    danger: '#FF3B30',
-    success: '#34C759',
-    inputBackground: '#f0f0f0',
-  },
-};
-
-const darkTheme: Theme = {
-  mode: 'dark',
-  colors: {
-    primary: '#0A84FF',
-    primaryLight: '#006c57',
-    background: '#121212',
-    card: '#1E1E1E',
-    text: '#FFFFFF',
-    textSecondary: '#a0a0a0',
-    border: '#333333',
-    notification: '#FF453A',
-    danger: '#FF453A',
-    success: '#30d158',
-    inputBackground: '#2c2c2c',
-  },
-};
-
+// Defina o tipo para o contexto
 type ThemeContextType = {
-  theme: Theme;
-  toggleTheme: () => void;
-};
+  theme: Theme
+  toggleTheme: () => void
+  isDarkMode: boolean
+}
 
+const THEME_STORAGE_KEY = "app_theme_preference"
+
+// Crie o contexto com o tipo apropriado
 const ThemeContext = createContext<ThemeContextType>({
   theme: lightTheme,
   toggleTheme: () => {},
-});
+  isDarkMode: false,
+})
 
-export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
-  const [theme, setTheme] = useState<Theme>(lightTheme);
+// Defina o tipo para as props do ThemeProvider
+interface ThemeProviderProps {
+  children: ReactNode
+}
 
+// Provedor do contexto com tipagem correta
+export const ThemeProvider = ({ children }: ThemeProviderProps) => {
+  const [theme, setTheme] = useState<Theme>(lightTheme)
+  const [isDarkMode, setIsDarkMode] = useState(false)
+
+  // Carrega a preferência de tema salva ao iniciar
   useEffect(() => {
     const loadTheme = async () => {
       try {
-        const savedTheme = await AsyncStorage.getItem('userTheme');
-        if (savedTheme === 'dark') {
-          setTheme(darkTheme);
-        } else {
-          setTheme(lightTheme);
+        const savedTheme = await AsyncStorage.getItem(THEME_STORAGE_KEY)
+        if (savedTheme === "dark") {
+          setTheme(darkTheme)
+          setIsDarkMode(true)
         }
       } catch (error) {
-        console.error('Failed to load theme preference:', error);
+        console.error("Erro ao carregar tema:", error)
       }
-    };
-
-    loadTheme();
-  }, []);
-
-  const toggleTheme = async () => {
-    const newTheme = theme.mode === 'light' ? darkTheme : lightTheme;
-    setTheme(newTheme);
-
-    try {
-      await AsyncStorage.setItem('userTheme', newTheme.mode);
-    } catch (error) {
-      console.error('Failed to save theme preference:', error);
     }
-  };
 
-  return (
-    <ThemeContext.Provider value={{ theme, toggleTheme }}>
-      {children}
-    </ThemeContext.Provider>
-  );
-};
+    loadTheme()
+  }, [])
 
-export default ThemeProvider;
+  // Função para alternar entre temas
+  const toggleTheme = async () => {
+    const newTheme = theme.dark ? lightTheme : darkTheme
+    const newIsDarkMode = !isDarkMode
 
-export const useTheme = () => useContext(ThemeContext);
+    setTheme(newTheme)
+    setIsDarkMode(newIsDarkMode)
+
+    // Salva a preferência do usuário
+    try {
+      await AsyncStorage.setItem(THEME_STORAGE_KEY, newTheme.dark ? "dark" : "light")
+    } catch (error) {
+      console.error("Erro ao salvar tema:", error)
+    }
+  }
+
+  return <ThemeContext.Provider value={{ theme, toggleTheme, isDarkMode }}>{children}</ThemeContext.Provider>
+}
+
+// Hook personalizado para usar o tema
+export const useTheme = () => useContext(ThemeContext)
+

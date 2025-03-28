@@ -1,13 +1,24 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { View, Text, TouchableOpacity, StyleSheet, Image, ActivityIndicator, ScrollView, Alert } from "react-native"
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  Image,
+  ActivityIndicator,
+  ScrollView,
+  Alert,
+  Switch,
+} from "react-native"
 import { supabase } from "@/utils/supabase"
 import * as ImagePicker from "expo-image-picker"
 import { decode } from "base64-arraybuffer"
 import type { User } from "@supabase/supabase-js"
-import { User as UserIcon, Camera, LogOut } from "lucide-react-native"
+import { User as UserIcon, Camera, LogOut, Moon, Sun } from "lucide-react-native"
 import { useTheme } from "@/context/ThemeContext"
+import AsyncStorage from "@react-native-async-storage/async-storage"
 
 interface Profile {
   id: string
@@ -25,8 +36,10 @@ interface AdminData {
   branch: string
 }
 
+const THEME_STORAGE_KEY = "app_theme_preference"
+
 const SettingsScreen = () => {
-  const { theme } = useTheme()
+  const { theme, toggleTheme } = useTheme()
 
   const [loading, setLoading] = useState(true)
   const [profileLoading, setProfileLoading] = useState(false)
@@ -42,10 +55,48 @@ const SettingsScreen = () => {
   const [branch, setBranch] = useState<string>("")
   const [isAdmin, setIsAdmin] = useState(false)
   const [adminData, setAdminData] = useState<AdminData | null>(null)
+  const [isDarkMode, setIsDarkMode] = useState(() => theme.dark === true)
+
+  // Carregar preferência de tema ao iniciar
+  useEffect(() => {
+    const loadThemePreference = async () => {
+      try {
+        const savedTheme = await AsyncStorage.getItem(THEME_STORAGE_KEY)
+        if (savedTheme !== null) {
+          // Se o tema salvo for diferente do tema atual, alternar
+          const savedIsDark = savedTheme === "dark"
+          if (savedIsDark !== theme.dark) {
+            toggleTheme()
+          }
+          setIsDarkMode(savedIsDark)
+        }
+      } catch (error) {
+        console.error("Erro ao carregar preferência de tema:", error)
+      }
+    }
+
+    loadThemePreference()
+  }, [])
 
   useEffect(() => {
     fetchUserProfile()
   }, [])
+
+  const handleThemeToggle = async () => {
+    // Primeiro atualizamos o estado local para evitar atraso na UI
+    const newThemeValue = !isDarkMode
+    setIsDarkMode(newThemeValue)
+
+    // Depois alteramos o tema global
+    toggleTheme()
+
+    // Salvamos a preferência para persistir entre sessões
+    try {
+      await AsyncStorage.setItem(THEME_STORAGE_KEY, newThemeValue ? "dark" : "light")
+    } catch (error) {
+      console.error("Erro ao salvar preferência de tema:", error)
+    }
+  }
 
   const fetchUserProfile = async () => {
     try {
@@ -225,13 +276,13 @@ const SettingsScreen = () => {
       flex: 1,
       alignItems: "center",
       paddingHorizontal: 20,
-      paddingTop: 50, // Increased top padding to move content down
+      paddingTop: 50,
       paddingBottom: 40,
     },
     profileSection: {
       width: "100%",
       alignItems: "center",
-      marginBottom: 50, // Increased margin to create more space
+      marginBottom: 50,
     },
     profilePhotoContainer: {
       position: "relative",
@@ -261,7 +312,7 @@ const SettingsScreen = () => {
       backgroundColor: theme.colors.card,
       borderRadius: 12,
       padding: 20,
-      marginBottom: 30, // Increased margin
+      marginBottom: 30,
     },
     welcomeText: {
       fontSize: 22,
@@ -287,6 +338,34 @@ const SettingsScreen = () => {
       flex: 1,
       fontWeight: "500",
     },
+    themeSection: {
+      width: "100%",
+      backgroundColor: theme.colors.card,
+      borderRadius: 12,
+      padding: 20,
+      marginBottom: 30,
+    },
+    themeSectionTitle: {
+      fontSize: 18,
+      fontWeight: "bold",
+      color: theme.colors.text,
+      marginBottom: 15,
+    },
+    themeRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+    },
+    themeLabel: {
+      fontSize: 16,
+      color: theme.colors.text,
+      flex: 1,
+    },
+    themeIcons: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginRight: 10,
+    },
     buttonContainer: {
       width: "100%",
       marginTop: 10,
@@ -309,7 +388,7 @@ const SettingsScreen = () => {
       fontSize: 14,
       color: theme.colors.text,
       opacity: 0.6,
-      marginTop: 40, // Increased margin
+      marginTop: 40,
       textAlign: "center",
     },
     loadingContainer: {
@@ -367,6 +446,24 @@ const SettingsScreen = () => {
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Filial:</Text>
             <Text style={styles.infoValue}>{adminData?.branch || "-"}</Text>
+          </View>
+        </View>
+
+        {/* Seção de tema */}
+        <View style={styles.themeSection}>
+          <Text style={styles.themeSectionTitle}>Personalização</Text>
+
+          <View style={styles.themeRow}>
+            <View style={styles.themeIcons}>
+              {isDarkMode ? <Moon size={22} color={theme.colors.text} /> : <Sun size={22} color={theme.colors.text} />}
+            </View>
+            <Text style={styles.themeLabel}>{isDarkMode ? "Tema Escuro" : "Tema Claro"}</Text>
+            <Switch
+              value={isDarkMode}
+              onValueChange={handleThemeToggle}
+              trackColor={{ false: "#767577", true: theme.colors.primary }}
+              thumbColor={"#f4f3f4"}
+            />
           </View>
         </View>
 
