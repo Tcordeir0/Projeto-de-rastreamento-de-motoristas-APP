@@ -288,45 +288,38 @@ const SettingsScreen = () => {
   }
 
   const handleChangePhoto = async () => {
-    if (!user) return
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      alert('Precisamos de permissão para acessar suas fotos!');
+      return;
+    }
 
-    try {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 1,
-        base64: true,
-      })
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 1,
+    });
 
-      if (!result.canceled && result.assets && result.assets[0].base64) {
-        setProfileLoading(true)
+    if (!result.canceled && result.assets[0].uri) {
+      const photoUri = result.assets[0].uri
+      const photoName = `profile-${user?.id}-${Date.now()}.jpg`
 
-        const fileName = `profile-${user.id}-${Date.now()}.jpg`
-        const base64FileData = result.assets[0].base64
+      const file = new File([await fetch(photoUri).then(res => res.blob())], photoName, { type: 'image/jpeg' });
+      const { data, error: uploadError } = await supabase.storage
+        .from('settings-imagens')
+        .upload(photoName, file, {
+          cacheControl: '3600',
+          upsert: true
+        });
 
-        const { data: uploadData, error: uploadError } = await supabase.storage
-          .from("settings-imagens")
-          .upload(fileName, decode(base64FileData), {
-            contentType: "image/jpeg",
-            upsert: true,
-          })
+      if (uploadError) throw uploadError
 
-        if (uploadError) throw uploadError
+      const { data: urlData } = supabase.storage
+        .from('settings-imagens')
+        .getPublicUrl(photoName)
 
-        const {
-          data: { publicUrl },
-        } = supabase.storage.from("settings-imagens").getPublicUrl(fileName)
-
-        handlePhotoChange(publicUrl)
-
-        Alert.alert("Sucesso", "Foto de perfil atualizada!")
-      }
-    } catch (error) {
-      console.error("Error updating profile photo:", error)
-      Alert.alert("Erro", "Não foi possível atualizar a foto de perfil.")
-    } finally {
-      setProfileLoading(false)
+      setProfile(prev => ({ ...prev, photoURL: urlData.publicUrl }))
     }
   }
 

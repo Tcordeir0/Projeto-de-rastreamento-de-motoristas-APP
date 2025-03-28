@@ -14,11 +14,9 @@ type Driver = {
   email: string
   phoneNumber: string
   truckType: string
-  location: {
-    latitude: number
-    longitude: number
-    timestamp: number
-  }
+  latitude: number
+  longitude: number
+  timestamp: number
   photoURL?: string
   isAdmin?: boolean
 }
@@ -35,6 +33,7 @@ export default function MapScreen() {
   const [drivers, setDrivers] = useState<Driver[]>([])
   const [isAdmin, setIsAdmin] = useState(false)
   const [mapReady, setMapReady] = useState(false)
+  const [loading, setLoading] = useState(false)
   const router = useRouter()
 
   // Verificar sessão e determinar se é admin
@@ -69,27 +68,27 @@ export default function MapScreen() {
     if (!isAdmin) return
 
     const loadInitialDrivers = async () => {
-      const { data, error } = await supabase.from("users").select("*").eq("isAdmin", false)
+      try {
+        setLoading(true)
 
-      if (error) {
-        console.error("Erro ao carregar motoristas:", error)
-        return
+        // Buscar apenas motoristas
+        const { data: drivers, error } = await supabase
+          .from('drivers')
+          .select('*')
+          .neq('isAdmin', true) // Garantir que não sejam administradores
+
+        if (error) throw error
+
+        if (drivers) {
+          const driversWithLocation = drivers.filter(driver => driver.latitude && driver.longitude)
+          setDrivers(driversWithLocation)
+        }
+      } catch (error) {
+        console.error('Erro ao carregar motoristas:', error)
+        // Alert.alert('Erro', 'Não foi possível carregar os motoristas')
+      } finally {
+        setLoading(false)
       }
-
-      const driversData = data
-        .filter((driver) => driver.location)
-        .map((driver) => ({
-          id: driver.id,
-          email: driver.email,
-          phoneNumber: driver.phoneNumber || "",
-          truckType: driver.truckType || "",
-          location: driver.location,
-          photoURL: driver.photoURL,
-          isAdmin: driver.isAdmin ?? false,
-        }))
-
-      setDrivers(driversData)
-      console.log(`Carregados ${driversData.length} motoristas`)
     }
 
     loadInitialDrivers()
@@ -153,46 +152,36 @@ export default function MapScreen() {
     })();
   }, [isAdmin]);
 
-  // Inscrever-se para atualizações em tempo real (apenas para admin)
+  // Inscrever-se para atualizações em tempo real
   useEffect(() => {
-    if (!isAdmin) return
-
-    const channel = supabase
-      .channel("drivers-location")
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "users" }, (payload: any) => {
-        if (payload.new && !payload.new.isAdmin && payload.new.location) {
-          console.log("Atualização de localização recebida para:", payload.new.email)
-
-          setDrivers((currentDrivers) => {
-            const driverIndex = currentDrivers.findIndex((d) => d.id === payload.new.id)
-            const updatedDriver = {
-              id: payload.new.id,
-              email: payload.new.email,
-              phoneNumber: payload.new.phoneNumber || "",
-              truckType: payload.new.truckType || "",
-              location: payload.new.location,
-              photoURL: payload.new.photoURL,
-              isAdmin: payload.new.isAdmin ?? false,
-            }
-
-            if (driverIndex >= 0) {
-              const updatedDrivers = [...currentDrivers]
-              updatedDrivers[driverIndex] = updatedDriver
+    const subscription = supabase
+      .channel('public:drivers')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'drivers',
+        filter: 'isAdmin=eq.false' // Filtra apenas motoristas
+      }, (payload) => {
+        const driver = payload.new as Driver
+        if (driver.latitude && driver.longitude) {
+          setDrivers(prevDrivers => {
+            const existingDriverIndex = prevDrivers.findIndex(d => d.id === driver.id)
+            if (existingDriverIndex !== -1) {
+              const updatedDrivers = [...prevDrivers]
+              updatedDrivers[existingDriverIndex] = driver
               return updatedDrivers
             } else {
-              return [...currentDrivers, updatedDriver]
+              return [...prevDrivers, driver]
             }
           })
         }
       })
       .subscribe()
 
-    console.log("Inscrito para atualizações em tempo real")
-
     return () => {
-      supabase.removeChannel(channel)
+      supabase.removeChannel(subscription)
     }
-  }, [isAdmin])
+  }, [])
 
   if (errorMsg) {
     return (
@@ -219,8 +208,8 @@ export default function MapScreen() {
             <Marker
               key={driver.id}
               coordinate={{
-                latitude: driver.location.latitude,
-                longitude: driver.location.longitude,
+                latitude: driver.latitude,
+                longitude: driver.longitude,
               }}
               title={driver.email}
               description={driver.truckType}
@@ -247,17 +236,6 @@ export default function MapScreen() {
               </Callout>
             </Marker>
           ))}
-          {location && !isAdmin && (
-            <Marker
-              coordinate={{
-                latitude: location.coords.latitude,
-                longitude: location.coords.longitude,
-              }}
-              title="Você"
-            >
-              <Ionicons name="car" size={24} color="blue" />
-            </Marker>
-          )}
         </MapView>
       )}
     </View>
