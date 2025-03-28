@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image, ActivityIndicator, Switch, ScrollView, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Image, ActivityIndicator, Switch, ScrollView, Alert } from 'react-native';
 import { supabase } from '@/utils/supabase';
 import * as ImagePicker from 'expo-image-picker';
 import { decode } from 'base64-arraybuffer';
@@ -13,6 +13,13 @@ interface Profile {
   email: string;
   phone: string;
   photoURL: string;
+  branch: string;
+}
+
+interface AdminData {
+  id: string;
+  name: string;
+  phone: string;
   branch: string;
 }
 
@@ -34,6 +41,7 @@ const SettingsScreen = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [userData, setUserData] = useState<any>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [adminData, setAdminData] = useState<AdminData | null>(null);
 
   useEffect(() => {
     fetchUserProfile();
@@ -256,6 +264,26 @@ const SettingsScreen = () => {
     }
   };
 
+  const fetchAdminData = async () => {
+    if (user?.id) {
+      const { data, error } = await supabase
+        .from('admins')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+
+      if (error) {
+        console.error('Erro ao buscar dados:', error);
+      } else {
+        setAdminData(data as AdminData);
+      }
+    }
+  };
+
+  useEffect(() => {
+    fetchAdminData();
+  }, [user]);
+
   const styles = StyleSheet.create({
     container: {
       flex: 1, 
@@ -293,23 +321,19 @@ const SettingsScreen = () => {
       borderRadius: 12,
       padding: 6,
     },
-    form: {
-      flex: 1,
+    bioContainer: {
+      marginTop: 20,
+      paddingHorizontal: 20,
     },
-    inputContainer: {
-      marginBottom: 20,
-    },
-    label: {
-      fontSize: 18,
-      marginBottom: 8,
+    bioTitle: {
+      fontSize: 20,
+      fontWeight: 'bold',
+      marginBottom: 10,
       color: theme.colors.text,
     },
-    input: {
-      height: 50,
-      borderColor: theme.colors.border,
-      borderWidth: 1,
-      borderRadius: 5,
-      paddingHorizontal: 10,
+    bioText: {
+      fontSize: 16,
+      marginBottom: 5,
       color: theme.colors.text,
     },
     button: {
@@ -349,83 +373,31 @@ const SettingsScreen = () => {
           </TouchableOpacity>
         </View>
 
-        <View style={styles.form}>
-          {isAdmin ? (
-            <>
-              <Text>Bem-vindo, Administrador!</Text>
-              <Text>Filial: {userData?.branch}</Text>
-              <Text>Telefone: {userData?.phone}</Text>
-            </>
-          ) : (
-            <>
-              <Text>Bem-vindo, Motorista!</Text>
-              <Text>Veículo: {userData?.vehicle_type}</Text>
-              <Text>Carteira: {userData?.license_number}</Text>
-            </>
-          )}
-          <View style={styles.inputContainer}>
-            <Text style={styles.label}>Nome</Text>
-            <TextInput
-              style={styles.input}
-              value={profile.name}
-              onChangeText={(text) => setProfile({ ...profile, name: text })}
-              editable={isEditing}
-            />
-          </View>
-
-          <View style={styles.inputContainer}>
-            <Text style={styles.label}>Email</Text>
-            <TextInput
-              style={styles.input}
-              value={profile.email}
-              editable={false}
-            />
-          </View>
-
-          <View style={styles.inputContainer}>
-            <Text style={styles.label}>Telefone</Text>
-            <TextInput
-              style={styles.input}
-              value={profile.phone}
-              onChangeText={(text) => setProfile({ ...profile, phone: `+55${text.replace(/[^0-9]/g, '')}` })}
-              editable={isEditing}
-              keyboardType="phone-pad"
-            />
-          </View>
-
-          <View style={styles.inputContainer}>
-            <Text style={styles.label}>Filial</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Filial"
-              value={branch}
-              onChangeText={(text) => setBranch(text)}
-              editable={isEditing}
-            />
-          </View>
-
-          <TouchableOpacity style={styles.button} onPress={handleSave}>
-            <Text style={styles.buttonText}>Salvar</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity 
-            style={[styles.button, { backgroundColor: '#FF3B30' }]}
-            onPress={handleLogout}
-          >
-            <LogOut size={25} color="white" />
-            <Text style={styles.buttonText}>Sair</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity 
-            style={[styles.button, { backgroundColor: '#34C759' }]}
-            onPress={handleEmailVerification}
-          >
-            <Mail size={25} color="white" />
-            <Text style={styles.buttonText}>Enviar link de verificação</Text>
-          </TouchableOpacity>
-
-          <Text style={{ fontSize: 16, marginTop: 20, color: theme.colors.text }}>Versão 0.0.1 Alpha</Text>
+        {/* Bio abaixo da foto */}
+        <View style={styles.bioContainer}>
+          <Text style={styles.bioTitle}>Bem-vindo, Administrador!</Text>
+          {user?.email && <Text style={styles.bioText}>Email: {user.email}</Text>}
+          {adminData?.name && <Text style={styles.bioText}>Nome: {adminData.name}</Text>}
+          {adminData?.phone && <Text style={styles.bioText}>Telefone: {adminData.phone}</Text>}
+          {adminData?.branch && <Text style={styles.bioText}>Filial: {adminData.branch}</Text>}
         </View>
+
+        {/* Botões de ação */}
+        <TouchableOpacity 
+          style={[styles.button, { backgroundColor: '#FF3B30' }]}
+          onPress={handleLogout}
+        >
+          <LogOut size={25} color="white" />
+          <Text style={styles.buttonText}>Sair</Text>
+        </TouchableOpacity>
+        <TouchableOpacity 
+          style={[styles.button, { backgroundColor: '#34C759' }]}
+          onPress={handleEmailVerification}
+        >
+          <Mail size={25} color="white" />
+          <Text style={styles.buttonText}>Enviar link de verificação</Text>
+        </TouchableOpacity>
+        <Text style={{ fontSize: 16, marginTop: 20, color: theme.colors.text }}>Versão 0.0.1 Alpha</Text>
       </View>
     </ScrollView>
   );
