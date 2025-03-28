@@ -215,7 +215,7 @@ const SettingsScreen = () => {
 
         const { error: updateError } = await supabase
           .from('users')
-          .update({ photo_url: publicUrl })
+          .update({ photoURL: publicUrl }) // Corrigir o nome da coluna
           .eq('id', user.id);
 
         if (updateError) throw updateError;
