@@ -288,40 +288,64 @@ const SettingsScreen = () => {
   }
 
   const handleChangePhoto = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      alert('Precisamos de permissão para acessar suas fotos!');
-      return;
-    }
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        alert('Precisamos de permissão para acessar suas fotos!');
+        return;
+      }
 
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [4, 3],
-      quality: 1,
-    });
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 1,
+      });
 
-    if (!result.canceled && result.assets[0].uri) {
-      const photoUri = result.assets[0].uri
-      const photoName = `profile-${user?.id}-${Date.now()}.jpg`
+      if (result.canceled || !result.assets || result.assets.length === 0) {
+        return;
+      }
 
-      const file = new File([await fetch(photoUri).then(res => res.blob())], photoName, { type: 'image/jpeg' });
-      const { data, error: uploadError } = await supabase.storage
+      const asset = result.assets[0];
+      if (!asset.uri) {
+        throw new Error('URI da imagem inválida');
+      }
+
+      const photoUri = asset.uri;
+      const photoName = `profile-${user?.id}-${Date.now()}.jpg`;
+
+      const response = await fetch(photoUri);
+      if (!response.ok) {
+        throw new Error('Falha ao carregar a imagem');
+      }
+
+      const blob = await response.blob();
+      const file = new File([blob], photoName, { type: 'image/jpeg' });
+
+      const { error: uploadError } = await supabase.storage
         .from('settings-imagens')
         .upload(photoName, file, {
           cacheControl: '3600',
           upsert: true
         });
 
-      if (uploadError) throw uploadError
+      if (uploadError) throw uploadError;
 
       const { data: urlData } = supabase.storage
         .from('settings-imagens')
-        .getPublicUrl(photoName)
+        .getPublicUrl(photoName);
 
-      setProfile(prev => ({ ...prev, photoURL: urlData.publicUrl }))
+      if (!urlData?.publicUrl) {
+        throw new Error('Erro ao obter URL pública');
+      }
+
+      setProfile(prev => ({ ...prev, photoURL: urlData.publicUrl }));
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido ao mudar foto';
+      console.error('Erro ao mudar foto:', error);
+      alert('Erro ao mudar foto: ' + errorMessage);
     }
-  }
+  };
 
   const handleLogout = async () => {
     try {

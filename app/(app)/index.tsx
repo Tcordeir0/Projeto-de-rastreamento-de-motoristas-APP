@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { View, Text, TouchableOpacity, StyleSheet, Linking, Image } from "react-native"
-import MapView, { Marker, Callout } from "react-native-maps"
+import MapView, { Marker, Callout, Polyline } from "react-native-maps"
 import * as Location from "expo-location"
 import { supabase } from "@/utils/supabase"
 import { Phone } from "lucide-react-native"
@@ -19,6 +19,10 @@ type Driver = {
   timestamp: number
   photoURL?: string
   isAdmin?: boolean
+  route?: {
+    latitude: number;
+    longitude: number;
+  }[]
 }
 
 type SupabasePayload = {
@@ -34,6 +38,15 @@ export default function MapScreen() {
   const [isAdmin, setIsAdmin] = useState(false)
   const [mapReady, setMapReady] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [filters, setFilters] = useState({
+    moving: true,
+    stopped: true,
+    region: 'all'
+  });
+  const [selectedDriverRoute, setSelectedDriverRoute] = useState<{
+    latitude: number;
+    longitude: number;
+  }[] | null>(null);
   const router = useRouter()
 
   // Verificar sessão e determinar se é admin
@@ -183,6 +196,70 @@ export default function MapScreen() {
     }
   }, [])
 
+  const filteredDrivers = drivers.filter(driver => {
+    const isMoving = Math.abs(Date.now() - driver.timestamp) < 60000;
+    return (
+      (filters.moving && isMoving) ||
+      (filters.stopped && !isMoving)
+    );
+  });
+
+  const calculateETA = (driver: Driver) => {
+    if (!location || !driver.latitude || !driver.longitude) return null;
+    const R = 6371; // Raio da Terra em km
+    const dLat = (driver.latitude - location.coords.latitude) * (Math.PI / 180);
+    const dLon = (driver.longitude - location.coords.longitude) * (Math.PI / 180);
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(location.coords.latitude * (Math.PI / 180)) *
+      Math.cos(driver.latitude * (Math.PI / 180)) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const distance = R * c; // Distância em km
+    const speed = 60; // Velocidade média em km/h
+    const eta = (distance / speed) * 60; // ETA em minutos
+    return Math.round(eta);
+  };
+
+  const handleStartChat = async (driverId: string) => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) return;
+
+    // Verificar se já existe uma conversa
+    const { data: existingChat, error: chatError } = await supabase
+      .from('chats')
+      .select('*')
+      .or(`user1.eq.${user.id},user2.eq.${user.id}`)
+      .or(`user1.eq.${driverId},user2.eq.${driverId}`)
+      .single();
+
+    if (chatError || !existingChat) {
+      // Criar nova conversa
+      const { data: newChat, error: createError } = await supabase
+        .from('chats')
+        .insert([{
+          user1: user.id,
+          user2: driverId,
+          lastMessage: '',
+          lastMessageAt: new Date().toISOString(),
+        }])
+        .select()
+        .single();
+
+      if (createError) {
+        console.error('Erro ao criar chat:', createError);
+        return;
+      }
+
+      router.push(`/(app)/chat/${newChat.id}`);
+    } else {
+      router.push(`/(app)/chat/${existingChat.id}`);
+    }
+  };
+
   if (errorMsg) {
     return (
       <View style={styles.container}>
@@ -204,38 +281,60 @@ export default function MapScreen() {
           }}
           onMapReady={() => setMapReady(true)}
         >
-          {drivers.map((driver) => (
-            <Marker
-              key={driver.id}
-              coordinate={{
-                latitude: driver.latitude,
-                longitude: driver.longitude,
-              }}
-              title={driver.email}
-              description={driver.truckType}
-            >
-              {driver.photoURL ? (
-                <Image
-                  source={{ uri: driver.photoURL }}
-                  style={{ width: 40, height: 40, borderRadius: 20 }}
-                />
-              ) : (
-                <Ionicons name="car" size={24} color="black" />
-              )}
-              <Callout>
-                <View>
-                  <Text>{driver.email}</Text>
-                  <Text>{driver.truckType}</Text>
-                  <TouchableOpacity
-                    onPress={() => Linking.openURL(`tel:${driver.phoneNumber}`)}
-                  >
-                    <Phone size={16} color="#000" />
-                    <Text>{driver.phoneNumber}</Text>
-                  </TouchableOpacity>
+          {filteredDrivers.map((driver) => {
+            const isMoving = Math.abs(Date.now() - driver.timestamp) < 60000;
+            return (
+              <Marker
+                key={driver.id}
+                coordinate={{
+                  latitude: driver.latitude,
+                  longitude: driver.longitude,
+                }}
+                onPress={() => {
+                  setSelectedDriverRoute(driver.route || null);
+                }}
+              >
+                <View style={[
+                  styles.marker,
+                  isMoving ? styles.movingMarker : styles.stoppedMarker
+                ]}>
+                  <Image
+                    source={{ uri: driver.photoURL || 'https://via.placeholder.com/40' }}
+                    style={styles.markerImage}
+                  />
                 </View>
-              </Callout>
-            </Marker>
-          ))}
+                <Callout>
+                  <View style={styles.calloutContainer}>
+                    <Text style={styles.calloutText}>{driver.email}</Text>
+                    <Text style={styles.calloutText}>{driver.truckType}</Text>
+                    <View style={styles.calloutButtons}>
+                      <TouchableOpacity
+                        style={styles.calloutButton}
+                        onPress={() => Linking.openURL(`tel:${driver.phoneNumber}`)}
+                      >
+                        <Phone size={16} color="#000" />
+                        <Text style={styles.calloutButtonText}>Ligar</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.calloutButton}
+                        onPress={() => handleStartChat(driver.id)}
+                      >
+                        <Ionicons name="chatbubbles" size={16} color="#000" />
+                        <Text style={styles.calloutButtonText}>Chat</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </Callout>
+              </Marker>
+            );
+          })}
+          {selectedDriverRoute && (
+            <Polyline
+              coordinates={selectedDriverRoute}
+              strokeColor="#0000FF"
+              strokeWidth={3}
+            />
+          )}
         </MapView>
       )}
     </View>
@@ -267,7 +366,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginBottom: 5,
   },
-  callButton: {
+  calloutButtons: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  calloutButton: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
@@ -275,8 +378,26 @@ const styles = StyleSheet.create({
     padding: 8,
     borderRadius: 5,
   },
-  callButtonText: {
+  calloutButtonText: {
     color: "white",
     marginLeft: 5,
+  },
+  marker: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  movingMarker: {
+    backgroundColor: "#00FF00",
+  },
+  stoppedMarker: {
+    backgroundColor: "#FF0000",
+  },
+  markerImage: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
   },
 })
