@@ -18,21 +18,9 @@ const RegisterScreen = () => {
     setLoading(true);
 
     try {
-      const { data: { user }, error } = await supabase.auth.signUp({
-        email: email,
-        password: password,
-      });
-
-      if (error) {
-        Alert.alert('Erro ao registrar:', error.message);
-        return;
-      }
-
-      if (user) {
-        const isAdmin = email.endsWith('@borgnotransportes.com.br');
-        const route = isAdmin ? '/(auth)/employee-register' : '/(auth)/driver-register';
-        router.replace({ pathname: route, params: { email } });
-      }
+      const isAdmin = email.endsWith('@borgnotransportes.com.br');
+      const route = isAdmin ? '/(auth)/employee-register' : '/(auth)/driver-register';
+      router.replace({ pathname: route, params: { email, password } });
     } catch (error: any) {
       Alert.alert('Erro inesperado:', error.message);
     } finally {

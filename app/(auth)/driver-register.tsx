@@ -2,8 +2,13 @@ import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, Alert } from 'react-native';
 import { supabase } from '@/utils/supabase';
 import { useRouter } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 
 const DriverRegisterScreen = () => {
+  const { email: emailParam, password: passwordParam } = useLocalSearchParams();
+  const email = Array.isArray(emailParam) ? emailParam[0] : emailParam || '';
+  const password = Array.isArray(passwordParam) ? passwordParam[0] : passwordParam || '';
+
   const [vehicle, setVehicle] = useState('');
   const [licensePlate, setLicensePlate] = useState('');
   const [driverLicense, setDriverLicense] = useState('');
@@ -20,27 +25,33 @@ const DriverRegisterScreen = () => {
     setLoading(true);
 
     try {
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      const { data: { user }, error: authError } = await supabase.auth.signUp({
+        email: email,
+        password: password,
+      });
 
-      if (sessionError || !session) {
-        throw new Error('Sessão inválida. Faça login novamente.');
+      if (authError) {
+        Alert.alert('Erro ao registrar:', authError.message);
+        return;
       }
 
-      const { error: dbError } = await supabase
-        .from('drivers')
-        .insert([{ 
-          id: session.user.id, 
-          vehicle: vehicle, 
-          license_plate: licensePlate, 
-          driver_license: driverLicense, 
-          truck_type: truckType 
-        }]);
+      if (user) {
+        const { error: dbError } = await supabase
+          .from('drivers')
+          .insert([{ 
+            id: user.id, 
+            vehicle: vehicle, 
+            license_plate: licensePlate, 
+            driver_license: driverLicense, 
+            truck_type: truckType 
+          }]);
 
-      if (dbError) {
-        Alert.alert('Erro ao salvar dados:', dbError.message);
-      } else {
-        Alert.alert('Sucesso', 'Registro concluído!');
-        router.replace('/');
+        if (dbError) {
+          Alert.alert('Erro ao salvar dados:', dbError.message);
+        } else {
+          Alert.alert('Sucesso', 'Registro concluído!');
+          router.replace('/');
+        }
       }
     } catch (error: any) {
       Alert.alert('Erro inesperado:', error.message);

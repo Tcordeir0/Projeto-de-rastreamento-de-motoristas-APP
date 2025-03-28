@@ -5,8 +5,9 @@ import { useRouter } from 'expo-router';
 import { useLocalSearchParams } from 'expo-router';
 
 const EmployeeRegisterScreen = () => {
-  const { email: emailParam } = useLocalSearchParams();
+  const { email: emailParam, password: passwordParam } = useLocalSearchParams();
   const email = Array.isArray(emailParam) ? emailParam[0] : emailParam || '';
+  const password = Array.isArray(passwordParam) ? passwordParam[0] : passwordParam || '';
   const [phone, setPhone] = useState<string>("");
   const [name, setName] = useState<string>("");
   const [branch, setBranch] = useState<string | null>(null);
@@ -25,7 +26,7 @@ const EmployeeRegisterScreen = () => {
     try {
       const { data: { user }, error: authError } = await supabase.auth.signUp({
         email: email,
-        password: 'password',
+        password: password,
       });
 
       if (authError) {
@@ -42,7 +43,7 @@ const EmployeeRegisterScreen = () => {
           Alert.alert('Erro ao salvar dados:', dbError.message);
         } else {
           Alert.alert('Sucesso', 'Registro concluído!');
-          router.replace('/app');
+          router.replace('/'); // Redireciona para a tela inicial
         }
       }
     } catch (error: any) {
