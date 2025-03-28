@@ -9,6 +9,8 @@ const DriverRegisterScreen = () => {
   const email = Array.isArray(emailParam) ? emailParam[0] : emailParam || '';
   const password = Array.isArray(passwordParam) ? passwordParam[0] : passwordParam || '';
 
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
   const [vehicle, setVehicle] = useState('');
   const [licensePlate, setLicensePlate] = useState('');
   const [driverLicense, setDriverLicense] = useState('');
@@ -17,7 +19,7 @@ const DriverRegisterScreen = () => {
   const router = useRouter();
 
   const handleRegister = async () => {
-    if (!vehicle || !licensePlate || !driverLicense || !truckType) {
+    if (!name || !phone || !vehicle || !licensePlate || !driverLicense || !truckType) {
       Alert.alert('Erro', 'Preencha todos os campos');
       return;
     }
@@ -40,6 +42,8 @@ const DriverRegisterScreen = () => {
           .from('drivers')
           .insert([{ 
             id: user.id, 
+            name: name,
+            phone: phone,
             vehicle: vehicle, 
             license_plate: licensePlate, 
             driver_license: driverLicense, 
@@ -50,7 +54,7 @@ const DriverRegisterScreen = () => {
           Alert.alert('Erro ao salvar dados:', dbError.message);
         } else {
           Alert.alert('Sucesso', 'Registro concluído!');
-          router.replace('/app'); // Redireciona para a tela inicial
+          router.push('/app'); // Redireciona para a tela inicial
         }
       }
     } catch (error: any) {
@@ -76,6 +80,21 @@ const DriverRegisterScreen = () => {
           <TouchableOpacity>
             <Text style={styles.subtitle}>Por favor, preencha esses dados:</Text>
           </TouchableOpacity>
+
+          <TextInput
+            style={styles.input}
+            placeholder="Nome"
+            value={name}
+            onChangeText={setName}
+          />
+
+          <TextInput
+            style={styles.input}
+            placeholder="Telefone"
+            value={phone}
+            onChangeText={setPhone}
+            keyboardType="phone-pad"
+          />
 
           <TextInput
             style={styles.input}

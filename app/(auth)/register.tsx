@@ -18,11 +18,27 @@ const RegisterScreen = () => {
     setLoading(true);
 
     try {
+      // Verificar se o usuário já existe
+      const { data: existingUser, error: userError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('email', email)
+        .single();
+
+      if (userError && userError.code !== 'PGRST116') {
+        throw userError;
+      }
+
+      if (existingUser) {
+        Alert.alert('Erro', 'Este e-mail já está registrado');
+        return;
+      }
+
       const isAdmin = email.endsWith('@borgnotransportes.com.br');
       const route = isAdmin ? '/(auth)/employee-register' : '/(auth)/driver-register';
       router.replace({ pathname: route, params: { email, password } });
     } catch (error: any) {
-      Alert.alert('Erro inesperado:', error.message);
+      Alert.alert('Erro', error.message || 'Ocorreu um erro ao tentar registrar');
     } finally {
       setLoading(false);
     }

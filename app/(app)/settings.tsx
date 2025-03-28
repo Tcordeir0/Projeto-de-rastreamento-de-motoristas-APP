@@ -27,6 +27,10 @@ interface Profile {
   phone: string
   photoURL: string
   branch: string
+  vehicle?: string
+  license_plate?: string
+  driver_license?: string
+  truck_type?: string
 }
 
 interface AdminData {
@@ -108,60 +112,84 @@ const SettingsScreen = () => {
 
       if (user) {
         setUser(user)
-        setIsAdmin(user?.email?.endsWith("@borgnotransportes.com.br") || false)
+        const isAdmin = user?.email?.endsWith("@borgnotransportes.com.br") || false
+        setIsAdmin(isAdmin)
 
         if (isAdmin) {
-          const { data: adminData } = await supabase.from("employees").select("*").eq("id", user?.id).single()
+          const { data: adminData, error: adminError } = await supabase
+            .from("employees")
+            .select("*")
+            .eq("id", user?.id)
+            .single()
+
+          if (adminError) throw adminError
+
           setAdminData(adminData)
-        } else {
-          const { data: driverData } = await supabase.from("drivers").select("*").eq("id", user?.id).single()
-        }
-
-        const { data, error } = await supabase.from("users").select("*").eq("id", user.id).single()
-
-        if (error && error.code !== "PGRST116") {
-          console.error("Error fetching profile:", error)
           setProfile({
             id: user.id,
-            name: "",
+            name: adminData?.name || "",
             email: user.email || "",
-            phone: "",
-            photoURL: "",
-            branch: "",
+            phone: adminData?.phone || "",
+            photoURL: adminData?.photoURL || "",
+            branch: adminData?.branch || "",
           })
-        } else if (data) {
-          setProfile({
-            id: data.id,
-            name: data.name || "",
-            email: user.email || "",
-            phone: data.phone || "",
-            photoURL: data.photoURL || "",
-            branch: data.branch || "",
-          })
-          setBranch(data.branch || "")
         } else {
-          await createUserProfile(user)
+          const { data: driverData, error: driverError } = await supabase
+            .from("drivers")
+            .select("name, phone, photoURL, branch, vehicle, license_plate, driver_license, truck_type")
+            .eq("id", user?.id)
+            .single()
+
+          if (driverError && driverError.code !== "PGRST116") throw driverError
+
+          if (!driverData) {
+            // Criar perfil de motorista se não existir
+            const { error: createError } = await supabase.from("drivers").insert({
+              id: user.id,
+              email: user.email,
+              name: "",
+              phone: "",
+              branch: "",
+              photoURL: "",
+              vehicle: "",
+              license_plate: "",
+              driver_license: "",
+              truck_type: "",
+            })
+
+            if (createError) throw createError
+
+            setProfile({
+              id: user.id,
+              name: "",
+              email: user.email || "",
+              phone: "",
+              photoURL: "",
+              branch: "",
+              vehicle: "",
+              license_plate: "",
+              driver_license: "",
+              truck_type: "",
+            })
+          } else {
+            setProfile({
+              id: user.id,
+              name: driverData?.name || "",
+              email: user.email || "",
+              phone: driverData?.phone || "",
+              photoURL: driverData?.photoURL || "",
+              branch: driverData?.branch || "",
+              vehicle: driverData?.vehicle,
+              license_plate: driverData?.license_plate,
+              driver_license: driverData?.driver_license,
+              truck_type: driverData?.truck_type,
+            })
+          }
         }
-      } else {
-        setProfile({
-          id: "",
-          name: "",
-          email: "",
-          phone: "",
-          photoURL: "",
-          branch: "",
-        })
       }
     } catch (error) {
-      console.error("Error in profile fetch:", error)
-      setProfile({
-        id: "",
-        name: "",
-        email: "",
-        phone: "",
-        photoURL: "",
-        branch: "",
-      })
+      console.error("Error fetching profile:", error)
+      Alert.alert("Erro", "Erro ao buscar dados do perfil")
     } finally {
       setLoading(false)
     }
@@ -426,27 +454,41 @@ const SettingsScreen = () => {
         </View>
 
         <View style={styles.infoSection}>
-          <Text style={styles.welcomeText}>Bem-vindo, Administrador!</Text>
+          <Text style={styles.welcomeText}>Bem-vindo, {profile.name}!</Text>
 
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Email:</Text>
-            <Text style={styles.infoValue}>{user?.email || "-"}</Text>
-          </View>
-
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Nome:</Text>
-            <Text style={styles.infoValue}>{adminData?.name || "-"}</Text>
+            <Text style={styles.infoValue}>{profile.email}</Text>
           </View>
 
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Telefone:</Text>
-            <Text style={styles.infoValue}>{adminData?.phone || "-"}</Text>
+            <Text style={styles.infoValue}>{profile.phone}</Text>
           </View>
 
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Filial:</Text>
-            <Text style={styles.infoValue}>{adminData?.branch || "-"}</Text>
-          </View>
+          {!isAdmin && (
+            <>
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Veículo:</Text>
+                <Text style={styles.infoValue}>{profile.vehicle}</Text>
+              </View>
+
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Placa do Veículo:</Text>
+                <Text style={styles.infoValue}>{profile.license_plate}</Text>
+              </View>
+
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Número da CNH:</Text>
+                <Text style={styles.infoValue}>{profile.driver_license}</Text>
+              </View>
+
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Tipo de Caminhão:</Text>
+                <Text style={styles.infoValue}>{profile.truck_type}</Text>
+              </View>
+            </>
+          )}
         </View>
 
         {/* Seção de tema */}
@@ -481,4 +523,3 @@ const SettingsScreen = () => {
 }
 
 export default SettingsScreen
-
