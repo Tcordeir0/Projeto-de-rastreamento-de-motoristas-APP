@@ -50,7 +50,7 @@ const DriverRegisterScreen = () => {
           Alert.alert('Erro ao salvar dados:', dbError.message);
         } else {
           Alert.alert('Sucesso', 'Registro concluído!');
-          router.replace('/');
+          router.replace('/app'); // Redireciona para a tela inicial
         }
       }
     } catch (error: any) {
