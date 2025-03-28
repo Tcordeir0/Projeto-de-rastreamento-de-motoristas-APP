@@ -19,6 +19,7 @@ type Driver = {
     longitude: number
     timestamp: number
   }
+  photoURL?: string
   isAdmin?: boolean
 }
 
@@ -83,6 +84,7 @@ export default function MapScreen() {
           phoneNumber: driver.phoneNumber || "",
           truckType: driver.truckType || "",
           location: driver.location,
+          photoURL: driver.photoURL,
           isAdmin: driver.isAdmin ?? false,
         }))
 
@@ -95,21 +97,22 @@ export default function MapScreen() {
 
   // Solicitar e monitorar localização
   useEffect(() => {
-    ;(async () => {
-      const { status } = await Location.requestForegroundPermissionsAsync()
+    (async () => {
+      if (isAdmin) return; 
+
+      const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== "granted") {
-        setErrorMsg("Permissão para acessar localização foi negada")
-        return
+        setErrorMsg("Permissão para acessar localização foi negada");
+        return;
       }
 
       try {
         const location = await Location.getCurrentPositionAsync({
           accuracy: Location.Accuracy.High,
-        })
-        setLocation(location)
-        console.log("Localização inicial obtida:", location.coords)
+        });
+        setLocation(location);
+        console.log("Localização inicial obtida:", location.coords);
 
-        // Monitorar mudanças de localização
         const locationSubscription = await Location.watchPositionAsync(
           {
             accuracy: Location.Accuracy.High,
@@ -117,41 +120,38 @@ export default function MapScreen() {
             distanceInterval: 10,
           },
           async (newLocation) => {
-            setLocation(newLocation)
-            console.log("Nova localização:", newLocation.coords)
+            setLocation(newLocation);
+            console.log("Nova localização:", newLocation.coords);
 
-            // Se não for admin, atualizar localização no Supabase
-            if (!isAdmin) {
-              const {
-                data: { user },
-              } = await supabase.auth.getUser()
-              if (!user) return
+            const {
+              data: { user },
+            } = await supabase.auth.getUser();
+            if (!user) return;
 
-              await supabase
-                .from("users")
-                .update({
-                  location: {
-                    latitude: newLocation.coords.latitude,
-                    longitude: newLocation.coords.longitude,
-                    timestamp: newLocation.timestamp,
-                  },
-                })
-                .eq("id", user.id)
+            await supabase
+              .from("users")
+              .update({
+                location: {
+                  latitude: newLocation.coords.latitude,
+                  longitude: newLocation.coords.longitude,
+                  timestamp: newLocation.timestamp,
+                },
+              })
+              .eq("id", user.id);
 
-              console.log("Localização atualizada no Supabase")
-            }
-          },
-        )
+            console.log("Localização atualizada no Supabase");
+          }
+        );
 
         return () => {
-          locationSubscription.remove()
-        }
+          locationSubscription.remove();
+        };
       } catch (error) {
-        console.error("Erro ao obter localização:", error)
-        setErrorMsg("Erro ao obter localização")
+        console.error("Erro ao obter localização:", error);
+        setErrorMsg("Erro ao obter localização");
       }
-    })()
-  }, [isAdmin])
+    })();
+  }, [isAdmin]);
 
   // Inscrever-se para atualizações em tempo real (apenas para admin)
   useEffect(() => {
@@ -171,6 +171,7 @@ export default function MapScreen() {
               phoneNumber: payload.new.phoneNumber || "",
               truckType: payload.new.truckType || "",
               location: payload.new.location,
+              photoURL: payload.new.photoURL,
               isAdmin: payload.new.isAdmin ?? false,
             }
 
@@ -224,6 +225,14 @@ export default function MapScreen() {
               title={driver.email}
               description={driver.truckType}
             >
+              {driver.photoURL ? (
+                <Image
+                  source={{ uri: driver.photoURL }}
+                  style={{ width: 40, height: 40, borderRadius: 20 }}
+                />
+              ) : (
+                <Ionicons name="car" size={24} color="black" />
+              )}
               <Callout>
                 <View>
                   <Text>{driver.email}</Text>
@@ -238,6 +247,17 @@ export default function MapScreen() {
               </Callout>
             </Marker>
           ))}
+          {location && !isAdmin && (
+            <Marker
+              coordinate={{
+                latitude: location.coords.latitude,
+                longitude: location.coords.longitude,
+              }}
+              title="Você"
+            >
+              <Ionicons name="car" size={24} color="blue" />
+            </Marker>
+          )}
         </MapView>
       )}
     </View>

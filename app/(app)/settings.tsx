@@ -22,11 +22,11 @@ import AsyncStorage from "@react-native-async-storage/async-storage"
 
 interface Profile {
   id: string
-  name: string
   email: string
+  name: string
   phone: string
   photoURL: string
-  branch: string
+  branch?: string
   vehicle?: string
   license_plate?: string
   driver_license?: string
@@ -38,6 +38,7 @@ interface AdminData {
   name: string
   phone: string
   branch: string
+  photoURL: string
 }
 
 const THEME_STORAGE_KEY = "app_theme_preference"
@@ -50,8 +51,8 @@ const SettingsScreen = () => {
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<Profile>({
     id: "",
-    name: "",
     email: "",
+    name: "",
     phone: "",
     photoURL: "",
     branch: "",
@@ -102,94 +103,159 @@ const SettingsScreen = () => {
     }
   }
 
-  const fetchUserProfile = async () => {
+  const handlePhotoChange = async (photoUri: string) => {
     try {
-      setLoading(true)
-
       const {
         data: { user },
-      } = await supabase.auth.getUser()
+      } = await supabase.auth.getUser();
 
-      if (user) {
-        setUser(user)
-        const isAdmin = user?.email?.endsWith("@borgnotransportes.com.br") || false
-        setIsAdmin(isAdmin)
+      if (!user) return;
 
-        if (isAdmin) {
-          const { data: adminData, error: adminError } = await supabase
-            .from("employees")
-            .select("*")
-            .eq("id", user?.id)
+      // Atualizar a foto no banco de dados
+      const { error } = await supabase
+        .from(isAdmin ? "admins" : "drivers")
+        .update({ photoURL: photoUri })
+        .eq("id", user.id);
+
+      if (error) throw error;
+
+      // Atualizar o estado do perfil
+      setProfile((prevProfile) => ({
+        ...prevProfile,
+        photoURL: photoUri,
+      }));
+
+      Alert.alert("Sucesso", "Foto atualizada com sucesso!");
+    } catch (error) {
+      console.error("Erro ao atualizar foto:", error);
+      Alert.alert("Erro", "Não foi possível atualizar a foto.");
+    }
+  };
+
+  const fetchUserProfile = async () => {
+    try {
+      console.log('Iniciando busca de perfil...')
+      setLoading(true)
+
+      // Buscar usuário na tabela de autenticação
+      const { data: { user }, error: authError } = await supabase.auth.getUser()
+      console.log('Resultado da autenticação:', { user, authError })
+
+      if (authError || !user) {
+        console.error('Erro na autenticação:', authError)
+        throw new Error('Usuário não autenticado')
+      }
+
+      // Verificar se o usuário é administrador
+      const { data: adminData, error: adminError } = await supabase
+        .from('admins')
+        .select('id')
+        .eq('id', user.id)
+        .single()
+      console.log('Resultado da verificação de admin:', { adminData, adminError })
+
+      const isAdmin = !!adminData && !adminError
+      setIsAdmin(isAdmin)
+
+      if (isAdmin) {
+        // Buscar perfil de administrador
+        const { data: adminProfile, error: adminProfileError } = await supabase
+          .from('admins')
+          .select('name, phone, branch, photoURL')
+          .eq('id', user.id)
+          .single()
+        console.log('Perfil de admin encontrado:', adminProfile)
+
+        if (adminProfileError) {
+          console.error('Erro ao buscar perfil de admin:', adminProfileError)
+          throw adminProfileError
+        }
+
+        setProfile({
+          id: user.id,
+          email: user.email || '',
+          name: adminProfile?.name || '',
+          phone: adminProfile?.phone || '',
+          photoURL: adminProfile?.photoURL || '',
+          branch: adminProfile?.branch || ''
+        })
+
+        setAdminData({
+          id: user.id,
+          name: adminProfile?.name || '',
+          phone: adminProfile?.phone || '',
+          branch: adminProfile?.branch || '',
+          photoURL: adminProfile?.photoURL || ''
+        })
+      } else {
+        // Buscar perfil de motorista
+        const { data: driverProfile, error: driverError } = await supabase
+          .from('drivers')
+          .select('name, phone, vehicle, license_plate, driver_license, truck_type, photoURL')
+          .eq('id', user.id)
+          .single()
+        console.log('Perfil de motorista encontrado:', driverProfile)
+
+        if (driverError && driverError.code !== 'PGRST116') {
+          console.error('Erro ao buscar perfil de motorista:', driverError)
+          throw driverError
+        }
+
+        if (!driverProfile) {
+          console.log('Criando novo perfil de motorista...')
+          const { error: createError } = await supabase
+            .from('drivers')
+            .insert([{
+              id: user.id,
+              name: '',
+              phone: '',
+              vehicle: '',
+              license_plate: '',
+              driver_license: '',
+              truck_type: '',
+              photoURL: '',
+            }])
+
+          if (createError) {
+            console.error('Erro ao criar perfil de motorista:', createError)
+            throw createError
+          }
+
+          // Buscar o perfil recém-criado
+          const { data: newProfile } = await supabase
+            .from('drivers')
+            .select('*')
+            .eq('id', user.id)
             .single()
 
-          if (adminError) throw adminError
-
-          setAdminData(adminData)
           setProfile({
             id: user.id,
-            name: adminData?.name || "",
-            email: user.email || "",
-            phone: adminData?.phone || "",
-            photoURL: adminData?.photoURL || "",
-            branch: adminData?.branch || "",
+            email: user.email || '',
+            name: newProfile?.name || '',
+            phone: newProfile?.phone || '',
+            photoURL: newProfile?.photoURL || '',
+            vehicle: newProfile?.vehicle || '',
+            license_plate: newProfile?.license_plate || '',
+            driver_license: newProfile?.driver_license || '',
+            truck_type: newProfile?.truck_type || ''
           })
         } else {
-          const { data: driverData, error: driverError } = await supabase
-            .from("drivers")
-            .select("name, phone, photoURL, branch, vehicle, license_plate, driver_license, truck_type")
-            .eq("id", user?.id)
-            .single()
-
-          if (driverError && driverError.code !== "PGRST116") throw driverError
-
-          if (!driverData) {
-            // Criar perfil de motorista se não existir
-            const { error: createError } = await supabase.from("drivers").insert({
-              id: user.id,
-              email: user.email,
-              name: "",
-              phone: "",
-              branch: "",
-              photoURL: "",
-              vehicle: "",
-              license_plate: "",
-              driver_license: "",
-              truck_type: "",
-            })
-
-            if (createError) throw createError
-
-            setProfile({
-              id: user.id,
-              name: "",
-              email: user.email || "",
-              phone: "",
-              photoURL: "",
-              branch: "",
-              vehicle: "",
-              license_plate: "",
-              driver_license: "",
-              truck_type: "",
-            })
-          } else {
-            setProfile({
-              id: user.id,
-              name: driverData?.name || "",
-              email: user.email || "",
-              phone: driverData?.phone || "",
-              photoURL: driverData?.photoURL || "",
-              branch: driverData?.branch || "",
-              vehicle: driverData?.vehicle,
-              license_plate: driverData?.license_plate,
-              driver_license: driverData?.driver_license,
-              truck_type: driverData?.truck_type,
-            })
-          }
+          setProfile({
+            id: user.id,
+            email: user.email || '',
+            name: driverProfile?.name || '',
+            phone: driverProfile?.phone || '',
+            photoURL: driverProfile?.photoURL || '',
+            vehicle: driverProfile?.vehicle || '',
+            license_plate: driverProfile?.license_plate || '',
+            driver_license: driverProfile?.driver_license || '',
+            truck_type: driverProfile?.truck_type || ''
+          })
         }
       }
     } catch (error) {
-      console.error("Error fetching profile:", error)
-      Alert.alert("Erro", "Erro ao buscar dados do perfil")
+      console.error('Erro completo ao buscar perfil:', error)
+      Alert.alert('Erro', 'Não foi possível carregar o perfil do usuário')
     } finally {
       setLoading(false)
     }
@@ -209,11 +275,11 @@ const SettingsScreen = () => {
 
       setProfile({
         id: user.id,
+        email: user.email || '',
         name: "",
-        email: user.email || "",
         phone: "",
         photoURL: "",
-        branch: "",
+        branch: ""
       })
       setBranch("")
     } catch (error) {
@@ -252,14 +318,7 @@ const SettingsScreen = () => {
           data: { publicUrl },
         } = supabase.storage.from("settings-imagens").getPublicUrl(fileName)
 
-        const { error: updateError } = await supabase.from("users").update({ photoURL: publicUrl }).eq("id", user.id)
-
-        if (updateError) throw updateError
-
-        setProfile({
-          ...profile,
-          photoURL: publicUrl,
-        })
+        handlePhotoChange(publicUrl)
 
         Alert.alert("Sucesso", "Foto de perfil atualizada!")
       }
@@ -465,6 +524,13 @@ const SettingsScreen = () => {
             <Text style={styles.infoLabel}>Telefone:</Text>
             <Text style={styles.infoValue}>{profile.phone}</Text>
           </View>
+
+          {isAdmin && (
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>Filial:</Text>
+              <Text style={styles.infoValue}>{profile.branch}</Text>
+            </View>
+          )}
 
           {!isAdmin && (
             <>
