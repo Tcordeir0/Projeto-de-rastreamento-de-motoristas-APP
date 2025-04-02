@@ -56,4 +56,16 @@ const config: ExpoConfig = {
   }
 };
 
+{
+  "plugins"; [
+    "expo-build-properties"
+  ]
+}
+
+{
+  "plugins"; [
+    "expo-secure-store"
+  ]
+}
+
 export default config;

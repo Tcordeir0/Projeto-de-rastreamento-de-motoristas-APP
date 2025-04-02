@@ -132,4 +132,4 @@ export const ThemeProvider = ({ children }: ThemeProviderProps) => {
 
 // Hook personalizado para usar o tema
 export const useTheme = () => useContext(ThemeContext)
-
+export default ThemeProvider;

@@ -1,5 +1,6 @@
 "use client"
 
+import React from "react"
 import { useEffect, useState } from "react"
 import { View, Text, TouchableOpacity, StyleSheet, Linking, Image } from "react-native"
 import MapView, { Marker, Callout, Polyline } from "react-native-maps"
@@ -260,6 +261,44 @@ export default function MapScreen() {
     }
   };
 
+  const mapRef = React.createRef<MapView>()
+
+  const fitMapToDrivers = (driversToFit: Driver[]) => {
+    if (!mapRef.current || driversToFit.length === 0) return;
+
+    const coordinates = driversToFit.map((driver) => ({
+      latitude: driver.latitude,
+      longitude: driver.longitude,
+    }));
+
+    mapRef.current.fitToCoordinates(coordinates, {
+      edgePadding: { top: 50, right: 50, bottom: 50, left: 50 },
+      animated: true,
+    });
+  };
+
+  const handleDriverPress = async (driver: Driver) => {
+    if (!mapRef.current) return;
+    const route = await fetchDriverRoute(driver.id);
+    setSelectedDriverRoute(route);
+  };
+
+  const fetchDriverRoute = async (driverId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from("driver_routes")
+        .select("route")
+        .eq("driver_id", driverId)
+        .single();
+
+      if (error) throw error;
+      return data?.route || null;
+    } catch (error) {
+      console.error("Erro ao buscar rota:", error);
+      return null;
+    }
+  };
+
   if (errorMsg) {
     return (
       <View style={styles.container}>
@@ -272,6 +311,7 @@ export default function MapScreen() {
     <View style={styles.container}>
       {location && (
         <MapView
+          ref={mapRef}
           style={styles.map}
           initialRegion={{
             latitude: location.coords.latitude,
@@ -315,13 +355,15 @@ export default function MapScreen() {
                         <Phone size={16} color="#000" />
                         <Text style={styles.calloutButtonText}>Ligar</Text>
                       </TouchableOpacity>
-                      <TouchableOpacity
-                        style={styles.calloutButton}
-                        onPress={() => handleStartChat(driver.id)}
-                      >
-                        <Ionicons name="chatbubbles" size={16} color="#000" />
-                        <Text style={styles.calloutButtonText}>Chat</Text>
-                      </TouchableOpacity>
+                      {isAdmin && (
+                        <TouchableOpacity
+                          style={styles.calloutButton}
+                          onPress={() => handleStartChat(driver.id)}
+                        >
+                          <Ionicons name="chatbubbles" size={16} color="#fff" />
+                          <Text style={styles.calloutButtonText}>Chat</Text>
+                        </TouchableOpacity>
+                      )}
                     </View>
                   </View>
                 </Callout>

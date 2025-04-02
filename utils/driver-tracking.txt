@@ -1,0 +1,114 @@
+import { supabase } from '@/utils/supabase'
+
+type DriverLocation = {
+  latitude: number
+  longitude: number
+  timestamp: number
+}
+
+type Driver = {
+  id: string
+  email: string
+  phoneNumber: string
+  truckType: string
+  latitude: number
+  longitude: number
+  timestamp: number
+  photoURL?: string
+  isAdmin?: boolean
+  route?: {
+    latitude: number
+    longitude: number
+  }[]
+}
+
+/**
+ * Busca todos os motoristas ativos
+ */
+export const fetchActiveDrivers = async (): Promise<Driver[]> => {
+  try {
+    const { data, error } = await supabase
+      .from("drivers")
+      .select("*")
+      .neq("isAdmin", true)
+      .order("timestamp", { ascending: false })
+
+    if (error) {
+      console.error("Erro ao buscar motoristas:", error)
+      return []
+    }
+
+    return data || []
+  } catch (error) {
+    console.error("Erro ao buscar motoristas:", error)
+    return []
+  }
+}
+
+/**
+ * Busca a rota de um motorista específico
+ */
+export const fetchDriverRoute = async (driverId: string) => {
+  try {
+    const { data, error } = await supabase.from("driver_routes").select("route").eq("driver_id", driverId).single()
+
+    if (error) {
+      console.error("Erro ao buscar rota:", error)
+      return null
+    }
+
+    return data?.route || null
+  } catch (error) {
+    console.error("Erro ao buscar rota:", error)
+    return null
+  }
+}
+
+/**
+ * Configura um listener para atualizações em tempo real dos motoristas
+ */
+export const setupDriversRealTimeListener = (callback: (drivers: Driver[]) => void) => {
+  const subscription = supabase
+    .channel("public:drivers")
+    .on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "drivers",
+        filter: "isAdmin=eq.false",
+      },
+      async () => {
+        // Quando houver qualquer mudança, buscar todos os motoristas atualizados
+        const drivers = await fetchActiveDrivers()
+        callback(drivers)
+      },
+    )
+    .subscribe()
+
+  return () => {
+    supabase.removeChannel(subscription)
+  }
+}
+
+/**
+ * Calcula a distância entre duas coordenadas em km
+ */
+export const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+  const R = 6371 // Raio da Terra em km
+  const dLat = (lat2 - lat1) * (Math.PI / 180)
+  const dLon = (lon2 - lon1) * (Math.PI / 180)
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * Math.sin(dLon / 2) * Math.sin(dLon / 2)
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+  return R * c
+}
+
+/**
+ * Calcula o tempo estimado de chegada em minutos
+ */
+export const calculateETA = (lat1: number, lon1: number, lat2: number, lon2: number, speedKmh = 60): number => {
+  const distance = calculateDistance(lat1, lon1, lat2, lon2)
+  return Math.round((distance / speedKmh) * 60) // ETA em minutos
+}

@@ -14,11 +14,10 @@ import {
 } from "react-native"
 import { supabase } from "@/utils/supabase"
 import * as ImagePicker from "expo-image-picker"
-import { decode } from "base64-arraybuffer"
-import type { User } from "@supabase/supabase-js"
 import { User as UserIcon, Camera, LogOut, Moon, Sun } from "lucide-react-native"
 import { useTheme } from "@/context/ThemeContext"
 import AsyncStorage from "@react-native-async-storage/async-storage"
+import type { User } from "@supabase/supabase-js"
 
 interface Profile {
   id: string
@@ -103,56 +102,33 @@ const SettingsScreen = () => {
     }
   }
 
-  const handlePhotoChange = async (photoUri: string) => {
-    try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) return;
-
-      // Atualizar a foto no banco de dados
-      const { error } = await supabase
-        .from(isAdmin ? "admins" : "drivers")
-        .update({ photoURL: photoUri })
-        .eq("id", user.id);
-
-      if (error) throw error;
-
-      // Atualizar o estado do perfil
-      setProfile((prevProfile) => ({
-        ...prevProfile,
-        photoURL: photoUri,
-      }));
-
-      Alert.alert("Sucesso", "Foto atualizada com sucesso!");
-    } catch (error) {
-      console.error("Erro ao atualizar foto:", error);
-      Alert.alert("Erro", "Não foi possível atualizar a foto.");
-    }
-  };
-
   const fetchUserProfile = async () => {
     try {
-      console.log('Iniciando busca de perfil...')
+      console.log("Iniciando busca de perfil...")
       setLoading(true)
 
       // Buscar usuário na tabela de autenticação
-      const { data: { user }, error: authError } = await supabase.auth.getUser()
-      console.log('Resultado da autenticação:', { user, authError })
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser()
+      console.log("Resultado da autenticação:", { user, authError })
 
       if (authError || !user) {
-        console.error('Erro na autenticação:', authError)
-        throw new Error('Usuário não autenticado')
+        console.error("Erro na autenticação:", authError)
+        throw new Error("Usuário não autenticado")
       }
+
+      // Armazenar o usuário no estado
+      setUser(user)
 
       // Verificar se o usuário é administrador
       const { data: adminData, error: adminError } = await supabase
-        .from('admins')
-        .select('id')
-        .eq('id', user.id)
+        .from("admins")
+        .select("id")
+        .eq("id", user.id)
         .single()
-      console.log('Resultado da verificação de admin:', { adminData, adminError })
+      console.log("Resultado da verificação de admin:", { adminData, adminError })
 
       const isAdmin = !!adminData && !adminError
       setIsAdmin(isAdmin)
@@ -160,102 +136,98 @@ const SettingsScreen = () => {
       if (isAdmin) {
         // Buscar perfil de administrador
         const { data: adminProfile, error: adminProfileError } = await supabase
-          .from('admins')
-          .select('name, phone, branch, photoURL')
-          .eq('id', user.id)
+          .from("admins")
+          .select("name, phone, branch, photoURL")
+          .eq("id", user.id)
           .single()
-        console.log('Perfil de admin encontrado:', adminProfile)
+        console.log("Perfil de admin encontrado:", adminProfile)
 
         if (adminProfileError) {
-          console.error('Erro ao buscar perfil de admin:', adminProfileError)
+          console.error("Erro ao buscar perfil de admin:", adminProfileError)
           throw adminProfileError
         }
 
         setProfile({
           id: user.id,
-          email: user.email || '',
-          name: adminProfile?.name || '',
-          phone: adminProfile?.phone || '',
-          photoURL: adminProfile?.photoURL || '',
-          branch: adminProfile?.branch || ''
+          email: user.email || "",
+          name: adminProfile?.name || "",
+          phone: adminProfile?.phone || "",
+          photoURL: adminProfile?.photoURL || "",
+          branch: adminProfile?.branch || "",
         })
 
         setAdminData({
           id: user.id,
-          name: adminProfile?.name || '',
-          phone: adminProfile?.phone || '',
-          branch: adminProfile?.branch || '',
-          photoURL: adminProfile?.photoURL || ''
+          name: adminProfile?.name || "",
+          phone: adminProfile?.phone || "",
+          branch: adminProfile?.branch || "",
+          photoURL: adminProfile?.photoURL || "",
         })
       } else {
         // Buscar perfil de motorista
         const { data: driverProfile, error: driverError } = await supabase
-          .from('drivers')
-          .select('name, phone, vehicle, license_plate, driver_license, truck_type, photoURL')
-          .eq('id', user.id)
+          .from("drivers")
+          .select("name, phone, vehicle, license_plate, driver_license, truck_type, photoURL")
+          .eq("id", user.id)
           .single()
-        console.log('Perfil de motorista encontrado:', driverProfile)
+        console.log("Perfil de motorista encontrado:", driverProfile)
 
-        if (driverError && driverError.code !== 'PGRST116') {
-          console.error('Erro ao buscar perfil de motorista:', driverError)
+        if (driverError && driverError.code !== "PGRST116") {
+          console.error("Erro ao buscar perfil de motorista:", driverError)
           throw driverError
         }
 
         if (!driverProfile) {
-          console.log('Criando novo perfil de motorista...')
-          const { error: createError } = await supabase
-            .from('drivers')
-            .insert([{
+          console.log("Criando novo perfil de motorista...")
+          const { error: createError } = await supabase.from("drivers").insert([
+            {
               id: user.id,
-              name: '',
-              phone: '',
-              vehicle: '',
-              license_plate: '',
-              driver_license: '',
-              truck_type: '',
-              photoURL: '',
-            }])
+              name: "",
+              phone: "",
+              vehicle: "",
+              license_plate: "",
+              driver_license: "",
+              truck_type: "",
+              photoURL: "",
+            },
+          ])
 
           if (createError) {
-            console.error('Erro ao criar perfil de motorista:', createError)
+            console.error("Erro ao criar perfil de motorista:", createError)
             throw createError
           }
 
           // Buscar o perfil recém-criado
-          const { data: newProfile } = await supabase
-            .from('drivers')
-            .select('*')
-            .eq('id', user.id)
-            .single()
+          const { data: newProfile } = await supabase.from("drivers").select("*").eq("id", user.id).single()
 
           setProfile({
             id: user.id,
-            email: user.email || '',
-            name: newProfile?.name || '',
-            phone: newProfile?.phone || '',
-            photoURL: newProfile?.photoURL || '',
-            vehicle: newProfile?.vehicle || '',
-            license_plate: newProfile?.license_plate || '',
-            driver_license: newProfile?.driver_license || '',
-            truck_type: newProfile?.truck_type || ''
+            email: user.email || "",
+            name: newProfile?.name || "",
+            phone: newProfile?.phone || "",
+            photoURL: newProfile?.photoURL || "",
+            vehicle: newProfile?.vehicle || "",
+            license_plate: newProfile?.license_plate || "",
+            driver_license: newProfile?.driver_license || "",
+            truck_type: newProfile?.truck_type || "",
           })
         } else {
           setProfile({
             id: user.id,
-            email: user.email || '',
-            name: driverProfile?.name || '',
-            phone: driverProfile?.phone || '',
-            photoURL: driverProfile?.photoURL || '',
-            vehicle: driverProfile?.vehicle || '',
-            license_plate: driverProfile?.license_plate || '',
-            driver_license: driverProfile?.driver_license || '',
-            truck_type: driverProfile?.truck_type || ''
+            email: user.email || "",
+            name: driverProfile?.name || "",
+            phone: driverProfile?.phone || "",
+            photoURL: driverProfile?.photoURL || "",
+            vehicle: driverProfile?.vehicle || "",
+            license_plate: driverProfile?.license_plate || "",
+            driver_license: driverProfile?.driver_license || "",
+            truck_type: driverProfile?.truck_type || "",
           })
         }
       }
     } catch (error) {
-      console.error('Erro completo ao buscar perfil:', error)
-      Alert.alert('Erro', 'Não foi possível carregar o perfil do usuário')
+      console.error("Erro completo ao buscar perfil:", error)
+      Alert.alert("Erro", "Não foi possível carregar o perfil do usuário")
     } finally {
       setLoading(false)
     }
@@ -275,11 +247,11 @@ const SettingsScreen = () => {
 
       setProfile({
         id: user.id,
-        email: user.email || '',
+        email: user.email || "",
         name: "",
         phone: "",
         photoURL: "",
-        branch: ""
+        branch: "",
       })
       setBranch("")
     } catch (error) {
@@ -289,63 +261,117 @@ const SettingsScreen = () => {
 
   const handleChangePhoto = async () => {
     try {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== 'granted') {
-        alert('Precisamos de permissão para acessar suas fotos!');
-        return;
+      setProfileLoading(true)
+
+      // Verificar permissões
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
+      if (status !== "granted") {
+        Alert.alert("Permissão negada", "Precisamos de permissão para acessar suas fotos!")
+        setProfileLoading(false)
+        return
       }
 
+      // Usar a API antiga, mas com tratamento de erro melhorado
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ImagePicker.MediaTypeOptions.Images, // Usar a API antiga por enquanto
         allowsEditing: true,
-        aspect: [4, 3],
-        quality: 1,
-      });
+        aspect: [1, 1],
+        quality: 0.5, // Reduzir ainda mais a qualidade para evitar problemas de memória
+      })
+
+      console.log("Resultado do ImagePicker:", result)
 
       if (result.canceled || !result.assets || result.assets.length === 0) {
-        return;
+        setProfileLoading(false)
+        return
       }
 
-      const asset = result.assets[0];
+      const asset = result.assets[0]
       if (!asset.uri) {
-        throw new Error('URI da imagem inválida');
+        throw new Error("URI da imagem inválida")
       }
 
-      const photoUri = asset.uri;
-      const photoName = `profile-${user?.id}-${Date.now()}.jpg`;
+      console.log("URI da imagem:", asset.uri)
 
-      const response = await fetch(photoUri);
-      if (!response.ok) {
-        throw new Error('Falha ao carregar a imagem');
+      // Verificar se o usuário está autenticado
+      const {
+        data: { user: currentUser },
+      } = await supabase.auth.getUser()
+      if (!currentUser) {
+        throw new Error("Usuário não autenticado")
       }
 
-      const blob = await response.blob();
-      const file = new File([blob], photoName, { type: 'image/jpeg' });
+      // Nome do arquivo
+      const photoName = `profile-${currentUser.id}-${Date.now()}.jpg`
 
-      const { error: uploadError } = await supabase.storage
-        .from('settings-imagens')
-        .upload(photoName, file, {
-          cacheControl: '3600',
-          upsert: true
-        });
+      try {
+        // Converter URI para Blob com tratamento de erro melhorado
+        const response = await fetch(asset.uri)
+        if (!response.ok) {
+          throw new Error(`Falha ao buscar imagem: ${response.status} ${response.statusText}`)
+        }
 
-      if (uploadError) throw uploadError;
+        const blob = await response.blob()
+        console.log("Tamanho do blob:", blob.size)
 
-      const { data: urlData } = supabase.storage
-        .from('settings-imagens')
-        .getPublicUrl(photoName);
+        // Verificar se o blob não está vazio
+        if (blob.size === 0) {
+          throw new Error("Arquivo de imagem vazio")
+        }
 
-      if (!urlData?.publicUrl) {
-        throw new Error('Erro ao obter URL pública');
+        // Upload para o Supabase Storage com mais logs
+        console.log("Iniciando upload para Supabase...")
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from("settings-imagens")
+          .upload(photoName, blob, {
+            cacheControl: "3600",
+            upsert: true,
+          })
+
+        if (uploadError) {
+          console.error("Erro no upload:", uploadError)
+          throw uploadError
+        }
+
+        console.log("Upload concluído com sucesso:", uploadData)
+
+        // Obter URL pública
+        const { data: urlData } = supabase.storage.from("settings-imagens").getPublicUrl(photoName)
+
+        if (!urlData?.publicUrl) {
+          throw new Error("Erro ao obter URL pública")
+        }
+
+        console.log("URL pública obtida:", urlData.publicUrl)
+
+        // Atualizar o perfil no banco de dados
+        const tableName = isAdmin ? "admins" : "drivers"
+        const { error: updateError } = await supabase
+          .from(tableName)
+          .update({ photoURL: urlData.publicUrl })
+          .eq("id", currentUser.id)
+
+        if (updateError) {
+          console.error("Erro ao atualizar perfil:", updateError)
+          throw updateError
+        }
+
+        // Atualizar o estado local
+        setProfile((prev) => ({ ...prev, photoURL: urlData.publicUrl }))
+        Alert.alert("Sucesso", "Foto atualizada com sucesso!")
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : "Erro desconhecido"
+        console.error("Erro no processamento da imagem:", error)
+        Alert.alert("Erro", `Falha no processamento da imagem: ${errorMessage}`)
       }
-
-      setProfile(prev => ({ ...prev, photoURL: urlData.publicUrl }));
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido ao mudar foto';
-      console.error('Erro ao mudar foto:', error);
-      alert('Erro ao mudar foto: ' + errorMessage);
+      const errorMessage = error instanceof Error ? error.message : "Erro desconhecido"
+      console.error("Erro ao mudar foto:", error)
+      Alert.alert("Erro", `Não foi possível atualizar a foto: ${errorMessage}`)
+    } finally {
+      setProfileLoading(false)
     }
-  };
+  }
 
   const handleLogout = async () => {
     try {
@@ -357,18 +383,22 @@ const SettingsScreen = () => {
 
   const fetchAdminData = async () => {
     if (user?.id) {
-      const { data, error } = await supabase.from("admins").select("*").eq("id", user.id).single()
+      const { data, error } = await supabase.from("admins").select("*").eq("id", user.id)
 
       if (error) {
         console.error("Erro ao buscar dados:", error)
+      } else if (data && data.length > 0) {
+        setAdminData(data[0] as AdminData)
       } else {
-        setAdminData(data as AdminData)
+        console.warn("Nenhum dado encontrado para o usuário", user.id)
       }
     }
   }
 
   useEffect(() => {
-    fetchAdminData()
+    if (user) {
+      fetchAdminData()
+    }
   }, [user])
 
   const styles = StyleSheet.create({
